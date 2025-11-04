@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import React, { useState, useEffect, useRef } from 'react';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
   FiArrowLeft,
@@ -112,6 +112,7 @@ interface Campaign {
 const SequenceDetailsPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
   const [activeTab, setActiveTab] = useState<'overview' | 'steps' | 'prospects' | 'settings'>('overview');
   const [editingStep, setEditingStep] = useState<CampaignStep | null>(null);
   const [isStepEditorOpen, setIsStepEditorOpen] = useState(false);
@@ -128,6 +129,38 @@ const SequenceDetailsPage: React.FC = () => {
   
   // Check if this is a newly created blank sequence
   const isNewSequence = id?.startsWith('seq_') || false;
+
+  // Scroll to top when navigating to this page (especially for campaign details)
+  useEffect(() => {
+    // Multiple attempts to scroll to top for this specific page
+    const scrollToTop = () => {
+      // Try to find and scroll the main content area
+      const mainContent = document.querySelector('.flex-1.overflow-auto') as HTMLElement;
+      if (mainContent) {
+        mainContent.scrollTop = 0;
+      }
+      
+      // Also scroll window to top
+      window.scrollTo(0, 0);
+      
+      // Try any other scrollable elements
+      const scrollableElements = document.querySelectorAll('[class*="overflow"], [class*="scroll"]');
+      scrollableElements.forEach((el: any) => {
+        if (el && typeof el.scrollTop === 'number') {
+          el.scrollTop = 0;
+        }
+      });
+    };
+
+    // Immediate scroll
+    scrollToTop();
+    
+    // Multiple retries to ensure it works
+    const timeouts = [10, 50, 100, 200, 500];
+    timeouts.forEach((delay) => {
+      setTimeout(scrollToTop, delay);
+    });
+  }, [location.pathname, location.key]); // Add location.key to catch back/forward navigation
 
   // Mock campaign data for frontend demo
   const [campaign, setCampaign] = useState<Campaign>({

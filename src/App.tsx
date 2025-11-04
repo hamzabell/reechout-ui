@@ -23,6 +23,7 @@ import ProspectEditPage from './pages/ProspectEditPage';
 import SettingsPage from './pages/SettingsPage';
 import ProtectedRoute from './components/ProtectedRoute';
 import Toast from './components/Toast';
+import ScrollToTop from './components/ScrollToTop';
 
 function App() {
   const { isAuthenticated, loading } = useAuthOperations();
@@ -43,7 +44,8 @@ function App() {
     <SWRProvider>
       <ModalProvider>
         <Router>
-          <div className="App">
+          <ScrollToTop>
+            <div className="App">
           <Routes>
           {/* Public Routes */}
           <Route 
@@ -89,8 +91,9 @@ function App() {
         </Routes>
 
         {/* Global Toast */}
-          <Toast toast={toast} onClose={hideToast} />
-        </div>
+            <Toast toast={toast} onClose={hideToast} />
+          </div>
+        </ScrollToTop>
       </Router>
       </ModalProvider>
     </SWRProvider>

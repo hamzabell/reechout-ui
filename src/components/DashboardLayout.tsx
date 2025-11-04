@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
+import { useConfirm } from '../hooks/useConfirm';
 import { TabType } from '../types';
 
 const DashboardLayout: React.FC = () => {
@@ -9,6 +10,8 @@ const DashboardLayout: React.FC = () => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
+  const { confirmWarning } = useConfirm();
+  const mainContentRef = useRef<HTMLDivElement>(null);
 
   const tabs = React.useMemo(() => [
     { id: 'overview' as TabType, label: 'Overview', icon: 'fas fa-dashboard' },
@@ -26,15 +29,59 @@ const DashboardLayout: React.FC = () => {
     }
   }, [location.pathname, tabs]);
 
+  // Scroll to top when route changes (including back/forward navigation)
+  React.useEffect(() => {
+    const scrollToTop = () => {
+      // Try multiple scroll targets for comprehensive coverage
+      if (mainContentRef.current) {
+        mainContentRef.current.scrollTop = 0;
+      }
+      
+      // Window scroll
+      window.scrollTo(0, 0);
+      document.body.scrollTop = 0;
+      document.documentElement.scrollTop = 0;
+      
+      // Find and scroll any other scrollable containers
+      const scrollableElements = document.querySelectorAll('[class*="overflow"], [class*="scroll"]');
+      scrollableElements.forEach((el: any) => {
+        if (el && typeof el.scrollTop === 'number') {
+          el.scrollTop = 0;
+        }
+      });
+    };
+
+    // Immediate scroll
+    scrollToTop();
+    
+    // Multiple retry attempts at different intervals to catch browser overrides
+    const delays = [0, 10, 50, 100, 300];
+    delays.forEach(delay => {
+      setTimeout(scrollToTop, delay);
+    });
+    
+  }, [location.pathname, location.key]); // Add location.key to catch back/forward navigation
+
   const handleTabClick = (tabId: TabType) => {
     setActiveTab(tabId);
     navigate(`/dashboard/${tabId}`);
     setMobileMenuOpen(false);
+    // Scroll to top when tab is clicked
+    setTimeout(() => {
+      if (mainContentRef.current) {
+        mainContentRef.current.scrollTop = 0;
+      }
+    }, 0);
   };
 
   const handleLogout = () => {
-    logout();
-    navigate('/');
+    confirmWarning({
+      title: 'Confirm Logout',
+      message: 'Are you sure you want to logout? You will need to sign in again to access your account.',
+      confirmText: 'Logout',
+      cancelText: 'Cancel',
+      onConfirm: logout
+    });
   };
 
   const getUserInitials = (name?: string) => {
@@ -146,7 +193,7 @@ const DashboardLayout: React.FC = () => {
         </header>
 
         {/* Page Content */}
-        <div className="flex-1 overflow-auto p-8 pt-32 bg-bg-secondary">
+        <div ref={mainContentRef} className="flex-1 overflow-auto p-8 pt-32 bg-bg-secondary">
           <div className="max-w-7xl mx-auto">
             <Outlet />
           </div>
