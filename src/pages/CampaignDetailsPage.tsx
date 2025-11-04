@@ -7,7 +7,6 @@ import {
   FiPause,
   FiRefreshCw,
   FiSquare,
-  FiEdit,
   FiPlus,
   FiMail,
   FiCheckSquare,
@@ -17,12 +16,16 @@ import {
   FiAlertCircle,
   FiTrash2,
   FiList,
-    FiTarget,
+  FiTarget,
   FiSettings,
+  FiInfo,
+  FiX,
+  FiZap,
 } from 'react-icons/fi';
 import StepEditor from '../components/campaigns/StepEditor';
 import StepReorder from '../components/campaigns/StepReorder';
 import StepCard from '../components/campaigns/StepCard';
+import ModalWrapper from '../components/ModalWrapper';
 
 interface CampaignStep {
   id: string;
@@ -109,10 +112,19 @@ interface Campaign {
 const SequenceDetailsPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState<'overview' | 'steps' | 'prospects' | 'basic-info' | 'settings'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'steps' | 'prospects' | 'settings'>('overview');
   const [editingStep, setEditingStep] = useState<CampaignStep | null>(null);
   const [isStepEditorOpen, setIsStepEditorOpen] = useState(false);
   const [isStepReorderOpen, setIsStepReorderOpen] = useState(false);
+  const [showProspectSelectionModal, setShowProspectSelectionModal] = useState(false);
+  const [selectedProspectsToAdd, setSelectedProspectsToAdd] = useState<string[]>([]);
+  
+  // State for schedule modal
+  const [showScheduleModal, setShowScheduleModal] = useState(false);
+  const [scheduleMode, setScheduleMode] = useState<'now' | 'scheduled'>('now');
+  const [scheduledDate, setScheduledDate] = useState<string>('');
+  const [scheduledTime, setScheduledTime] = useState<string>('');
+  const [timezone, setTimezone] = useState<string>('UTC');
   
   // Check if this is a newly created blank sequence
   const isNewSequence = id?.startsWith('seq_') || false;
@@ -276,13 +288,104 @@ const SequenceDetailsPage: React.FC = () => {
     { id: '3', name: 'Final Follow-up', subject: 'Final follow-up', body: 'Hi {{name}}, just checking in one last time.' },
   ];
 
+  // Mock available prospects for selection
+  const availableProspects = [
+    {
+      id: 'prospect_a1',
+      name: 'Sarah Johnson',
+      email: 'sarah.j@techstart.io',
+      company: 'TechStart Inc.',
+      title: 'VP of Engineering',
+      location: 'San Francisco, CA',
+      industry: 'Technology',
+      status: 'NEW'
+    },
+    {
+      id: 'prospect_a2',
+      name: 'Michael Chen',
+      email: 'm.chen@innovatecorp.com',
+      company: 'InnovateCorp',
+      title: 'CTO',
+      location: 'New York, NY',
+      industry: 'Technology',
+      status: 'NEW'
+    },
+    {
+      id: 'prospect_a3',
+      name: 'Emma Williams',
+      email: 'emma.w@designhub.co',
+      company: 'Design Hub',
+      title: 'Creative Director',
+      location: 'Los Angeles, CA',
+      industry: 'Design',
+      status: 'CONTACTED'
+    },
+    {
+      id: 'prospect_a4',
+      name: 'David Martinez',
+      email: 'david.m@fintech.pro',
+      company: 'FinTech Pro',
+      title: 'CEO',
+      location: 'Austin, TX',
+      industry: 'Finance',
+      status: 'NEW'
+    },
+    {
+      id: 'prospect_a5',
+      name: 'Lisa Anderson',
+      email: 'lisa.a@healthplus.com',
+      company: 'HealthPlus',
+      title: 'Product Manager',
+      location: 'Boston, MA',
+      industry: 'Healthcare',
+      status: 'REPLIED'
+    },
+    {
+      id: 'prospect_a6',
+      name: 'James Wilson',
+      email: 'j.wilson@retailnow.net',
+      company: 'RetailNow',
+      title: 'Marketing Director',
+      location: 'Chicago, IL',
+      industry: 'Retail',
+      status: 'NEW'
+    }
+  ];
+
   const [isLoading] = useState(false);
   const [error] = useState(null);
 
-  const handleCampaignAction = (action: 'start' | 'pause' | 'restart' | 'stop') => {
-    console.log(`Sequence action: ${action}`, { sequenceId: id });
-    // Frontend-only: just log the action
-    alert(`Sequence "${campaign.name}" ${action} action triggered (frontend demo)`);
+  const handleCampaignAction = (action: 'start' | 'pause' | 'restart' | 'stop' | 'schedule' | 'end') => {
+    console.log(`Sequence action: ${action}`, { sequenceId: id, scheduleMode, scheduledDate });
+    
+    if (action === 'start') {
+      // Update campaign status to ACTIVE
+      setCampaign(prev => ({ ...prev, status: 'ACTIVE' }));
+      alert(`Campaign "${campaign.name}" started successfully! 🚀`);
+    } else if (action === 'pause') {
+      // Update campaign status to PAUSED
+      setCampaign(prev => ({ ...prev, status: 'PAUSED' }));
+      alert(`Campaign "${campaign.name}" paused successfully! ⏸️`);
+    } else if (action === 'restart') {
+      // Update campaign status to ACTIVE
+      setCampaign(prev => ({ ...prev, status: 'ACTIVE' }));
+      alert(`Campaign "${campaign.name}" resumed successfully! ▶️`);
+    } else if (action === 'end') {
+      // Update campaign status to COMPLETED
+      setCampaign(prev => ({ ...prev, status: 'COMPLETED' }));
+      alert(`Campaign "${campaign.name}" ended successfully! 🔴`);
+    } else if (action === 'schedule') {
+      if (scheduleMode === 'scheduled' && !scheduledDate) {
+        alert('Please select a date to schedule the campaign.');
+        return;
+      }
+      const scheduleText = scheduleMode === 'now' 
+        ? 'immediately' 
+        : `on ${new Date(scheduledDate).toLocaleDateString()}`;
+      alert(`Sequence "${campaign.name}" scheduled to start ${scheduleText} (frontend demo)`);
+    } else {
+      alert(`Sequence "${campaign.name}" ${action} action triggered (frontend demo)`);
+    }
   };
 
   const handleRemoveProspect = (campaignProspectId: string) => {
@@ -344,68 +447,63 @@ const SequenceDetailsPage: React.FC = () => {
   const handleAddProspects = () => {
     if (!campaign) return;
 
-    // Demo functionality: Add mock prospects to the sequence
-    const mockProspectsToAdd = [
-      {
-        id: `prospect_${Date.now()}_1`,
-        name: 'John Smith',
-        email: 'john.smith@techcorp.com',
-        company: 'TechCorp Inc.',
-        title: 'Engineering Manager',
-        status: 'ACTIVE',
-      },
-      {
-        id: `prospect_${Date.now()}_2`,
-        name: 'Emily Davis',
-        email: 'emily.davis@innovate.co',
-        company: 'Innovate & Co',
-        title: 'Product Director',
-        status: 'PENDING',
-      },
-      {
-        id: `prospect_${Date.now()}_3`,
-        name: 'Robert Wilson',
-        email: 'robert.wilson@startup.io',
-        company: 'Startup.io',
-        title: 'CEO',
-        status: 'ACTIVE',
-      }
-    ];
+    // Open prospect selection modal
+    setShowProspectSelectionModal(true);
+    setSelectedProspectsToAdd([]);
+  };
+
+  const handleProspectSelection = (prospectId: string) => {
+    setSelectedProspectsToAdd(prev =>
+      prev.includes(prospectId)
+        ? prev.filter(id => id !== prospectId)
+        : [...prev, prospectId]
+    );
+  };
+
+  const handleAddSelectedProspects = () => {
+    if (selectedProspectsToAdd.length === 0) {
+      alert('Please select at least one prospect to add.');
+      return;
+    }
+
+    const prospectsToAdd = availableProspects.filter(prospect =>
+      selectedProspectsToAdd.includes(prospect.id)
+    );
 
     // Update the campaign with new prospects
     setCampaign(prev => ({
       ...prev,
       campaignProspects: [
         ...(prev.campaignProspects || []),
-        ...mockProspectsToAdd.map(prospect => ({
+        ...prospectsToAdd.map(prospect => ({
           id: `cp_${prospect.id}`,
-          status: prospect.status,
-          prospect: prospect,
+          status: 'PENDING',
+          prospect: {
+            id: prospect.id,
+            name: prospect.name,
+            email: prospect.email,
+            company: prospect.company,
+            title: prospect.title,
+            location: prospect.location,
+            industry: prospect.industry,
+            notes: '',
+          },
           personalizedEmails: []
         }))
-      ]
+      ],
+      statistics: {
+        ...prev.statistics,
+        totalProspects: prev.statistics.totalProspects + prospectsToAdd.length
+      }
     }));
 
-    // Show success message
-    alert(`Added ${mockProspectsToAdd.length} prospects to the sequence successfully!`);
+    // Close modal and show success message
+    setShowProspectSelectionModal(false);
+    setSelectedProspectsToAdd([]);
+    alert(`Added ${prospectsToAdd.length} prospects to the sequence successfully!`);
   };
 
   
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'ACTIVE':
-        return 'bg-green-100 text-green-800 border-green-200';
-      case 'PAUSED':
-        return 'bg-yellow-100 text-yellow-800 border-yellow-200';
-      case 'COMPLETED':
-        return 'bg-blue-100 text-blue-800 border-blue-200';
-      case 'CANCELLED':
-        return 'bg-red-100 text-red-800 border-red-200';
-      default:
-        return 'bg-gray-100 text-gray-800 border-gray-200';
-    }
-  };
-
   const getStatusIcon = (status: string) => {
     switch (status) {
       case 'ACTIVE':
@@ -462,7 +560,7 @@ const SequenceDetailsPage: React.FC = () => {
       initial="hidden"
       animate="visible"
       variants={containerVariants}
-      className="min-h-screen bg-gradient-bg"
+      className="sequence-editor"
     >
       {/* Header */}
       <motion.div variants={itemVariants} className="bg-white border-b border-slate-200">
@@ -490,31 +588,58 @@ const SequenceDetailsPage: React.FC = () => {
               </span>
               
               {campaign.status === 'DRAFT' && (
-                <button
-                  onClick={() => handleCampaignAction('start')}
-                  className="btn-primary"
-                >
-                  <FiPlay className="w-4 h-4" />
-                  Start
-                </button>
+                <>
+                  <button
+                    onClick={() => setShowScheduleModal(true)}
+                    className="px-4 py-2 bg-white border-2 border-indigo-500 text-indigo-600 rounded-lg hover:bg-indigo-50 transition-all duration-200 flex items-center gap-2 font-medium"
+                  >
+                    <FiCalendar className="w-4 h-4" />
+                    <span>Schedule</span>
+                  </button>
+                  <button
+                    onClick={() => handleCampaignAction('start')}
+                    className="px-4 py-2 bg-gradient-to-r from-indigo-500 to-purple-600 text-white rounded-lg hover:from-indigo-600 hover:to-purple-700 transition-all duration-200 flex items-center gap-2 font-medium shadow-md hover:shadow-lg"
+                  >
+                    <FiPlay className="w-4 h-4" />
+                    <span>Start Now</span>
+                  </button>
+                </>
               )}
               {campaign.status === 'ACTIVE' && (
-                <button
-                  onClick={() => handleCampaignAction('pause')}
-                  className="px-4 py-2 bg-amber-500 text-white rounded-xl hover:bg-amber-600 transition-colors flex items-center gap-2"
-                >
-                  <FiPause className="w-4 h-4" />
-                  Pause
-                </button>
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => handleCampaignAction('pause')}
+                    className="px-4 py-2 bg-white border-2 border-amber-500 text-amber-600 rounded-lg hover:bg-amber-50 transition-all duration-200 flex items-center gap-2 font-medium"
+                  >
+                    <FiPause className="w-4 h-4" />
+                    <span>Pause</span>
+                  </button>
+                  <button
+                    onClick={() => handleCampaignAction('end')}
+                    className="px-4 py-2 bg-gradient-to-r from-red-500 to-red-600 text-white rounded-lg hover:from-red-600 hover:to-red-700 transition-all duration-200 flex items-center gap-2 font-medium shadow-md hover:shadow-lg"
+                  >
+                    <FiSquare className="w-4 h-4" />
+                    <span>End</span>
+                  </button>
+                </div>
               )}
               {campaign.status === 'PAUSED' && (
-                <button
-                  onClick={() => handleCampaignAction('restart')}
-                  className="px-4 py-2 bg-blue-500 text-white rounded-xl hover:bg-blue-600 transition-colors flex items-center gap-2"
-                >
-                  <FiRefreshCw className="w-4 h-4" />
-                  Resume
-                </button>
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => handleCampaignAction('restart')}
+                    className="px-4 py-2 bg-gradient-to-r from-indigo-500 to-purple-600 text-white rounded-lg hover:from-indigo-600 hover:to-purple-700 transition-all duration-200 flex items-center gap-2 font-medium shadow-md hover:shadow-lg"
+                  >
+                    <FiRefreshCw className="w-4 h-4" />
+                    <span>Resume</span>
+                  </button>
+                  <button
+                    onClick={() => handleCampaignAction('end')}
+                    className="px-4 py-2 bg-white border-2 border-red-500 text-red-600 rounded-lg hover:bg-red-50 transition-all duration-200 flex items-center gap-2 font-medium"
+                  >
+                    <FiSquare className="w-4 h-4" />
+                    <span>End</span>
+                  </button>
+                </div>
               )}
             </div>
           </div>
@@ -536,15 +661,15 @@ const SequenceDetailsPage: React.FC = () => {
             <h3 className="text-3xl font-bold text-slate-900">{campaign.statistics.totalSteps}</h3>
             <p className="text-slate-600 mt-1">Total Steps</p>
           </div>
-          
+
           <div className="metric-card">
             <div className="flex items-center justify-between mb-4">
               <div className="w-12 h-12 bg-emerald-100 rounded-xl flex items-center justify-center">
                 <FiUser className="w-6 h-6 text-emerald-600" />
               </div>
               <span className={`text-sm stat-change ${campaign.statistics.activeProspects > 0 ? 'positive' : ''}`}>
-                {campaign.statistics.totalProspects > 0 ? 
-                  `${Math.round((campaign.statistics.activeProspects / campaign.statistics.totalProspects) * 100)}% active` : 
+                {campaign.statistics.totalProspects > 0 ?
+                  `${Math.round((campaign.statistics.activeProspects / campaign.statistics.totalProspects) * 100)}% active` :
                   'No prospects'
                 }
               </span>
@@ -552,7 +677,7 @@ const SequenceDetailsPage: React.FC = () => {
             <h3 className="text-3xl font-bold text-slate-900">{campaign.statistics.totalProspects}</h3>
             <p className="text-slate-600 mt-1">Total Prospects</p>
           </div>
-          
+
           <div className="metric-card">
             <div className="flex items-center justify-between mb-4">
               <div className="w-12 h-12 bg-purple-100 rounded-xl flex items-center justify-center">
@@ -581,11 +706,14 @@ const SequenceDetailsPage: React.FC = () => {
               ].map((tab) => (
                 <button
                   key={tab.id}
-                  onClick={() => setActiveTab(tab.id as any)}
-                  className={`flex-1 flex items-center justify-center gap-2 px-4 py-4 text-sm font-medium transition-colors ${
+                  onClick={() => {
+                    console.log('Tab clicked:', tab.id);
+                    setActiveTab(tab.id as any);
+                  }}
+                  className={`flex-1 flex items-center justify-center gap-2 px-4 py-4 text-sm font-medium transition-colors border-b-2 ${
                     activeTab === tab.id
-                      ? 'text-blue-600 border-b-2 border-blue-600 bg-blue-50'
-                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+                      ? 'text-blue-600 border-blue-600 bg-blue-50'
+                      : 'text-slate-600 border-transparent hover:text-slate-900 hover:bg-slate-50'
                   }`}
                 >
                   <tab.icon className="w-4 h-4" />
@@ -600,17 +728,19 @@ const SequenceDetailsPage: React.FC = () => {
             </div>
           </div>
           
-          <div className="p-6">
+          <div className="p-6 bg-white min-h-[400px]">
+  
             {activeTab === 'overview' && (
-              <motion.div variants={itemVariants}>
+              <div>
+                <h2 className="text-2xl font-bold mb-6">Campaign Analytics</h2>
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                   {/* Campaign Timeline */}
-                  <div className="card">
+                  <div className="analytics-card">
                     <h3 className="text-lg font-semibold text-slate-900 mb-4">Campaign Timeline</h3>
                     <div className="space-y-3">
-                      <div className="flex items-center gap-3">
-                        <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
-                        <div>
+                      <div className="timeline-item">
+                        <div className="timeline-dot bg-blue-500"></div>
+                        <div className="timeline-content">
                           <p className="text-sm font-medium text-slate-900">Created</p>
                           <p className="text-xs text-slate-500">
                             {new Date(campaign.createdAt).toLocaleDateString()}
@@ -618,9 +748,9 @@ const SequenceDetailsPage: React.FC = () => {
                         </div>
                       </div>
                       {campaign.startedAt && (
-                        <div className="flex items-center gap-3">
-                          <div className="w-3 h-3 bg-emerald-500 rounded-full"></div>
-                          <div>
+                        <div className="timeline-item">
+                          <div className="timeline-dot bg-emerald-500"></div>
+                          <div className="timeline-content">
                             <p className="text-sm font-medium text-slate-900">Started</p>
                             <p className="text-xs text-slate-500">
                               {new Date(campaign.startedAt).toLocaleDateString()}
@@ -629,9 +759,9 @@ const SequenceDetailsPage: React.FC = () => {
                         </div>
                       )}
                       {campaign.pausedAt && (
-                        <div className="flex items-center gap-3">
-                          <div className="w-3 h-3 bg-amber-500 rounded-full"></div>
-                          <div>
+                        <div className="timeline-item">
+                          <div className="timeline-dot bg-amber-500"></div>
+                          <div className="timeline-content">
                             <p className="text-sm font-medium text-slate-900">Paused</p>
                             <p className="text-xs text-slate-500">
                               {new Date(campaign.pausedAt).toLocaleDateString()}
@@ -640,9 +770,9 @@ const SequenceDetailsPage: React.FC = () => {
                         </div>
                       )}
                       {campaign.completedAt && (
-                        <div className="flex items-center gap-3">
-                          <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
-                          <div>
+                        <div className="timeline-item">
+                          <div className="timeline-dot bg-blue-500"></div>
+                          <div className="timeline-content">
                             <p className="text-sm font-medium text-slate-900">Completed</p>
                             <p className="text-xs text-slate-500">
                               {new Date(campaign.completedAt).toLocaleDateString()}
@@ -654,7 +784,7 @@ const SequenceDetailsPage: React.FC = () => {
                   </div>
 
                   {/* Quick Stats */}
-                  <div className="card">
+                  <div className="analytics-card">
                     <h3 className="text-lg font-semibold text-slate-900 mb-4">Progress Overview</h3>
                     <div className="space-y-4">
                       <div>
@@ -664,9 +794,9 @@ const SequenceDetailsPage: React.FC = () => {
                             {campaign.statistics.activeProspects}/{campaign.statistics.totalProspects}
                           </span>
                         </div>
-                        <div className="w-full bg-slate-200 rounded-full h-2">
+                        <div className="progress-bar">
                           <div
-                            className="bg-emerald-500 h-2 rounded-full transition-all duration-500"
+                            className="progress-fill bg-emerald-500"
                             style={{
                               width: `${campaign.statistics.totalProspects > 0
                                 ? (campaign.statistics.activeProspects / campaign.statistics.totalProspects) * 100
@@ -682,9 +812,9 @@ const SequenceDetailsPage: React.FC = () => {
                             {campaign.statistics.completedProspects}/{campaign.statistics.totalProspects}
                           </span>
                         </div>
-                        <div className="w-full bg-slate-200 rounded-full h-2">
+                        <div className="progress-bar">
                           <div
-                            className="bg-blue-500 h-2 rounded-full transition-all duration-500"
+                            className="progress-fill bg-blue-500"
                             style={{
                               width: `${campaign.statistics.totalProspects > 0
                                 ? (campaign.statistics.completedProspects / campaign.statistics.totalProspects) * 100
@@ -696,15 +826,15 @@ const SequenceDetailsPage: React.FC = () => {
                     </div>
                   </div>
                 </div>
-              </motion.div>
+              </div>
             )}
 
             {activeTab === 'steps' && (
-              <motion.div variants={itemVariants}>
+              <div>
+                <h2 className="text-2xl font-bold mb-6">Campaign Steps</h2>
                 <div className="mb-6 flex items-center justify-between">
                   <div>
-                    <h3 className="text-lg font-semibold text-slate-900">Campaign Steps</h3>
-                    <p className="text-sm text-slate-600 mt-1">
+                    <p className="text-sm text-slate-600">
                       Configure and manage the steps in your campaign sequence
                     </p>
                   </div>
@@ -731,12 +861,7 @@ const SequenceDetailsPage: React.FC = () => {
                 {campaign.steps.length > 0 ? (
                   <div className="space-y-4">
                     {campaign.steps.map((step: CampaignStep, index: number) => (
-                      <motion.div
-                        key={step.id}
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: index * 0.1 }}
-                      >
+                      <div key={step.id}>
                         <StepCard
                           step={step}
                           onEdit={() => handleEditStep(step)}
@@ -744,15 +869,11 @@ const SequenceDetailsPage: React.FC = () => {
                           showActions={campaign.status === 'DRAFT'}
                           campaignId={campaign.id}
                         />
-                      </motion.div>
+                      </div>
                     ))}
                   </div>
                 ) : (
-                  <motion.div
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    className="border-2 border-dashed border-slate-300 rounded-2xl p-12 text-center text-center"
-                  >
+                  <div className="step-empty-state">
                     <FiCalendar className="w-12 h-12 text-slate-400 mx-auto mb-4" />
                     <h3 className="text-lg font-medium text-slate-900 mb-2">No Steps Yet</h3>
                     <p className="text-slate-600 mb-6">
@@ -765,7 +886,7 @@ const SequenceDetailsPage: React.FC = () => {
                       <FiPlus className="w-4 h-4" />
                       Add First Step
                     </button>
-                  </motion.div>
+                  </div>
                 )}
 
                 {campaign.status !== 'DRAFT' && campaign.steps.length > 0 && (
@@ -783,60 +904,173 @@ const SequenceDetailsPage: React.FC = () => {
                     </div>
                   </div>
                 )}
-              </motion.div>
+              </div>
             )}
 
             {activeTab === 'prospects' && (
-              <motion.div variants={itemVariants}>
-                <div className="mb-6 flex items-center justify-between">
-                  <h3 className="text-lg font-semibold text-slate-900">Campaign Prospects</h3>
-                  <button
-                    onClick={handleAddProspects}
-                    className="btn-primary"
-                  >
-                    <FiPlus className="w-4 h-4" />
-                    Add Prospect
-                  </button>
-                </div>
-                
-                <div className="space-y-1">
-                  {campaign.campaignProspects.map((cp: CampaignProspect) => (
-                    <div key={cp.id} className="bg-white border border-slate-200 rounded-xl p-4 hover:border-slate-300 transition-colors">
-                      <div className="flex items-start justify-between">
-                        <div className="flex-1">
-                          <div className="flex items-center gap-3 mb-2">
-                            <h4 className="font-medium text-slate-900">{cp.prospect.name}</h4>
-                            <span className={`status-badge ${cp.status.toLowerCase()}`}>
-                              {cp.status}
-                            </span>
-                          </div>
-                          <p className="text-sm text-slate-600 mb-1">{cp.prospect.email}</p>
-                          {(cp.prospect.company || cp.prospect.title) && (
-                            <p className="text-sm text-slate-500">
-                              {cp.prospect.title && `${cp.prospect.title}`}
-                              {cp.prospect.title && cp.prospect.company && ' at '}
-                              {cp.prospect.company && `${cp.prospect.company}`}
-                            </p>
-                          )}
+              <div>
+                {/* Header with Add Prospect Button */}
+                <div className="mb-8">
+                  <div className="flex items-center justify-between mb-6">
+                    <div>
+                      <h2 className="text-2xl font-bold text-slate-900">Campaign Prospects</h2>
+                      <p className="text-slate-600 mt-1">Manage prospects in this campaign sequence</p>
+                    </div>
+                    <button
+                      onClick={handleAddProspects}
+                      className="btn-primary flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl hover:from-blue-700 hover:to-indigo-700 transition-all duration-200 shadow-lg hover:shadow-xl"
+                    >
+                      <FiPlus className="w-4 h-4" />
+                      Add Prospect
+                    </button>
+                  </div>
 
-                          {cp.personalizedEmails.length > 0 && (
-                            <div className="mt-3">
-                              <p className="text-xs text-slate-500 mb-2">Personalized Emails:</p>
-                              <div className="flex flex-wrap gap-2">
-                                {cp.personalizedEmails.map((email: any) => (
-                                  <span
-                                    key={email.id}
-                                    className="px-2 py-1 bg-slate-100 text-slate-700 rounded-lg text-xs"
-                                  >
-                                    Step {email.stepEmailAction.step.stepNumber}: {email.status}
+                  {/* Stats Cards */}
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+                    <div className="bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-200 rounded-xl p-4">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-sm text-blue-600 font-medium">Total Prospects</p>
+                          <p className="text-2xl font-bold text-blue-900">{campaign.campaignProspects.length}</p>
+                        </div>
+                        <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
+                          <FiUser className="w-5 h-5 text-blue-600" />
+                        </div>
+                      </div>
+                    </div>
+                    <div className="bg-gradient-to-br from-emerald-50 to-green-50 border border-emerald-200 rounded-xl p-4">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-sm text-emerald-600 font-medium">Active</p>
+                          <p className="text-2xl font-bold text-emerald-900">
+                            {campaign.campaignProspects.filter(cp => cp.status === 'ACTIVE').length}
+                          </p>
+                        </div>
+                        <div className="w-10 h-10 bg-emerald-100 rounded-lg flex items-center justify-center">
+                          <FiPlay className="w-5 h-5 text-emerald-600" />
+                        </div>
+                      </div>
+                    </div>
+                    <div className="bg-gradient-to-br from-amber-50 to-yellow-50 border border-amber-200 rounded-xl p-4">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-sm text-amber-600 font-medium">Pending</p>
+                          <p className="text-2xl font-bold text-amber-900">
+                            {campaign.campaignProspects.filter(cp => cp.status === 'PENDING').length}
+                          </p>
+                        </div>
+                        <div className="w-10 h-10 bg-amber-100 rounded-lg flex items-center justify-center">
+                          <FiClock className="w-5 h-5 text-amber-600" />
+                        </div>
+                      </div>
+                    </div>
+                    <div className="bg-gradient-to-br from-purple-50 to-indigo-50 border border-purple-200 rounded-xl p-4">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-sm text-purple-600 font-medium">Completed</p>
+                          <p className="text-2xl font-bold text-purple-900">
+                            {campaign.campaignProspects.filter(cp => cp.status === 'COMPLETED').length}
+                          </p>
+                        </div>
+                        <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center">
+                          <FiCheckSquare className="w-5 h-5 text-purple-600" />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Prospects List */}
+                {campaign.campaignProspects.length === 0 ? (
+                  <div className="text-center py-16">
+                    <div className="w-20 h-20 bg-gradient-to-br from-slate-100 to-blue-100 rounded-2xl flex items-center justify-center mx-auto mb-6">
+                      <FiUser className="w-10 h-10 text-slate-400" />
+                    </div>
+                    <h3 className="text-xl font-semibold text-slate-900 mb-3">No prospects yet</h3>
+                    <p className="text-slate-600 mb-8 max-w-md mx-auto">
+                      Start by adding prospects to your campaign sequence to begin your outreach.
+                    </p>
+                    <button
+                      onClick={handleAddProspects}
+                      className="btn-primary inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl hover:from-blue-700 hover:to-indigo-700 transition-all duration-200 shadow-lg hover:shadow-xl"
+                    >
+                      <FiPlus className="w-4 h-4" />
+                      Add Your First Prospect
+                    </button>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {campaign.campaignProspects.map((cp: CampaignProspect, index: number) => (
+                      <div
+                        key={cp.id}
+                        className="bg-white border border-slate-200 rounded-xl p-6 hover:shadow-lg transition-all duration-200 hover:border-blue-200"
+                      >
+                        <div className="flex items-start justify-between">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-4 mb-3">
+                              <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center text-white font-semibold text-lg">
+                                {cp.prospect.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)}
+                              </div>
+                              <div className="flex-1">
+                                <div className="flex items-center gap-3 mb-1">
+                                  <h4 className="font-semibold text-slate-900 text-lg">{cp.prospect.name}</h4>
+                                  <span className={`px-3 py-1 rounded-full text-xs font-medium border ${
+                                    cp.status === 'ACTIVE'
+                                      ? 'bg-emerald-100 text-emerald-700 border-emerald-200'
+                                      : cp.status === 'PENDING'
+                                      ? 'bg-amber-100 text-amber-700 border-amber-200'
+                                      : cp.status === 'COMPLETED'
+                                      ? 'bg-blue-100 text-blue-700 border-blue-200'
+                                      : 'bg-slate-100 text-slate-700 border-slate-200'
+                                  }`}>
+                                    {cp.status === 'ACTIVE' && <FiPlay className="w-3 h-3 inline mr-1" />}
+                                    {cp.status === 'PENDING' && <FiClock className="w-3 h-3 inline mr-1" />}
+                                    {cp.status === 'COMPLETED' && <FiCheckSquare className="w-3 h-3 inline mr-1" />}
+                                    {cp.status}
                                   </span>
-                                ))}
+                                </div>
+                                <p className="text-slate-600 font-medium">{cp.prospect.email}</p>
+                                {(cp.prospect.title || cp.prospect.company) && (
+                                  <p className="text-sm text-slate-500 mt-1">
+                                    {cp.prospect.title && `${cp.prospect.title}`}
+                                    {cp.prospect.title && cp.prospect.company && ' at '}
+                                    {cp.prospect.company && `${cp.prospect.company}`}
+                                  </p>
+                                )}
                               </div>
                             </div>
-                          )}
-                        </div>
-                        <div className="flex items-center gap-2 ml-4">
-                          {cp.status === 'ACTIVE' && (
+
+                            {cp.personalizedEmails.length > 0 && (
+                              <div className="mt-4 p-3 bg-slate-50 rounded-lg">
+                                <p className="text-xs text-slate-600 font-medium mb-2">Personalized Emails Progress:</p>
+                                <div className="flex flex-wrap gap-2">
+                                  {cp.personalizedEmails.map((email: any) => (
+                                    <span
+                                      key={email.id}
+                                      className={`px-2 py-1 rounded-lg text-xs font-medium ${
+                                        email.status === 'SENT'
+                                          ? 'bg-emerald-100 text-emerald-700 border border-emerald-200'
+                                          : email.status === 'DRAFT'
+                                          ? 'bg-amber-100 text-amber-700 border border-amber-200'
+                                          : 'bg-slate-100 text-slate-700 border border-slate-200'
+                                      }`}
+                                    >
+                                      Step {email.stepEmailAction.step.stepNumber}: {email.status}
+                                    </span>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+
+                          <div className="flex items-center gap-2 ml-4">
+                            <button
+                              onClick={() => navigate(`/dashboard/campaigns/${campaign.id}/prospects/${cp.prospect.id}/steps`)}
+                              className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                              title="Configure prospect personalization"
+                            >
+                              <FiZap className="w-4 h-4" />
+                            </button>
                             <button
                               onClick={() => handleRemoveProspect(cp.id)}
                               className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
@@ -844,129 +1078,116 @@ const SequenceDetailsPage: React.FC = () => {
                             >
                               <FiTrash2 className="w-4 h-4" />
                             </button>
-                          )}
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  ))}
-                </div>
-              </motion.div>
+                    ))}
+                  </div>
+                )}
+              </div>
             )}
 
             {activeTab === 'settings' && (
-              <motion.div variants={itemVariants}>
-                <div className="space-y-6">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-2">
-                        Sequence Name
-                      </label>
-                      <input
-                        type="text"
-                        value={campaign.name}
-                        onChange={(e) => setCampaign(prev => ({ ...prev, name: e.target.value }))}
-                        placeholder="Enter sequence name..."
-                        className="input-field"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-2">
-                        Status
-                      </label>
-                      <select
-                        value={campaign.status}
-                        onChange={(e) => setCampaign(prev => ({ ...prev, status: e.target.value as any }))}
-                        className="input-field"
-                      >
-                        <option value="DRAFT">Draft</option>
-                        <option value="ACTIVE">Active</option>
-                        <option value="PAUSED">Paused</option>
-                        <option value="COMPLETED">Completed</option>
-                        <option value="CANCELLED">Cancelled</option>
-                      </select>
-                    </div>
-                  </div>
-
+              <div className="space-y-8">
+                {/* Header */}
+                <div className="flex items-center justify-between">
                   <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-2">
-                      Description
-                    </label>
-                    <textarea
-                      value={campaign.description || ''}
-                      onChange={(e) => setCampaign(prev => ({ ...prev, description: e.target.value }))}
-                      placeholder="Describe your sequence objectives and what it aims to achieve..."
-                      rows={3}
-                      className="input-field"
-                    />
+                    <h2 className="text-3xl font-bold text-slate-900 mb-2">Campaign Settings</h2>
+                    <p className="text-slate-600">Configure your campaign basic information</p>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <button className="btn-secondary">
+                      Cancel Changes
+                    </button>
+                    <button className="btn-primary">
+                      Save Settings
+                    </button>
+                  </div>
+                </div>
+
+                {/* Basic Information Card */}
+                <motion.div 
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.1 }}
+                  className="bg-white rounded-2xl border border-slate-200 shadow-sm hover:shadow-lg transition-all duration-300 w-full"
+                >
+                  <div className="px-8 py-6 border-b border-slate-200">
+                    <div className="flex items-center gap-4">
+                      <div className="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center">
+                        <FiMail className="w-6 h-6 text-blue-600" />
+                      </div>
+                      <div>
+                        <h3 className="text-xl font-bold text-slate-900">Basic Information</h3>
+                        <p className="text-slate-600">Configure campaign name and description</p>
+                      </div>
+                    </div>
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-2">
-                        Send Time
-                      </label>
-                      <div className="relative">
-                        <FiClock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 w-4 h-4" />
+                  <div className="p-8">
+                    <div className="grid grid-cols-1 gap-6">
+                      <div className="space-y-2">
+                        <label className="flex items-center gap-2 text-sm font-semibold text-slate-700">
+                          <div className="w-1.5 h-1.5 bg-blue-500 rounded-full"></div>
+                          Campaign Name
+                        </label>
                         <input
-                          type="time"
-                          value={campaign.sendTime || '09:00'}
-                          onChange={(e) => setCampaign(prev => ({ ...prev, sendTime: e.target.value }))}
-                          className="input-field pl-10"
+                          type="text"
+                          value={campaign.name}
+                          onChange={(e) => setCampaign(prev => ({ ...prev, name: e.target.value }))}
+                          placeholder="Enter campaign name..."
+                          className="w-full px-5 py-4 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 bg-slate-50/50 transition-all duration-200 hover:border-slate-300 hover:bg-white"
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <label className="flex items-center gap-2 text-sm font-semibold text-slate-700">
+                          <div className="w-1.5 h-1.5 bg-blue-500 rounded-full"></div>
+                          Description
+                        </label>
+                        <textarea
+                          value={campaign.description || ''}
+                          onChange={(e) => setCampaign(prev => ({ ...prev, description: e.target.value }))}
+                          placeholder="Describe your campaign objectives and what it aims to achieve..."
+                          rows={4}
+                          className="w-full px-5 py-4 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 bg-slate-50/50 transition-all duration-200 hover:border-slate-300 hover:bg-white resize-none"
                         />
                       </div>
                     </div>
-                    <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-2">
-                        Daily Limit
-                      </label>
-                      <input
-                        type="number"
-                        min="1"
-                        max="1000"
-                        value={campaign.dailyLimit || 50}
-                        onChange={(e) => setCampaign(prev => ({ ...prev, dailyLimit: parseInt(e.target.value) || 50 }))}
-                        className="input-field"
-                      />
-                    </div>
-                  </div>
 
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-2">
-                      Timezone
-                    </label>
-                    <select
-                      value={campaign.timezone || 'America/New_York'}
-                      onChange={(e) => setCampaign(prev => ({ ...prev, timezone: e.target.value }))}
-                      className="input-field"
-                    >
-                      <option value="America/New_York">Eastern Time (ET)</option>
-                      <option value="America/Chicago">Central Time (CT)</option>
-                      <option value="America/Denver">Mountain Time (MT)</option>
-                      <option value="America/Los_Angeles">Pacific Time (PT)</option>
-                      <option value="Europe/London">London (GMT)</option>
-                      <option value="Europe/Paris">Paris (CET)</option>
-                      <option value="Asia/Tokyo">Tokyo (JST)</option>
-                      <option value="Australia/Sydney">Sydney (AEDT)</option>
-                    </select>
-                  </div>
-
-                  <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
-                    <div className="flex items-start gap-3">
-                      <FiSettings className="w-5 h-5 text-blue-600 mt-0.5" />
-                      <div>
-                        <h4 className="font-medium text-blue-900">Delivery Settings</h4>
-                        <p className="text-sm text-blue-700 mt-1">
-                          These settings control when and how many emails are sent per day.
-                          Sequences will respect the daily limit and send at the specified time in the chosen timezone.
-                        </p>
+                    {/* Status Bar */}
+                    <div className="mt-8 p-4 bg-gradient-to-r from-slate-50 to-blue-50 rounded-xl border border-slate-200/60">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-4">
+                          <div className="flex items-center gap-2">
+                            <FiInfo className="w-4 h-4 text-slate-600" />
+                            <span className="text-sm font-medium text-slate-700">Status:</span>
+                            <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
+                              campaign.status === 'DRAFT' ? 'bg-amber-100 text-amber-700 border border-amber-200' :
+                              campaign.status === 'ACTIVE' ? 'bg-emerald-100 text-emerald-700 border border-emerald-200' :
+                              campaign.status === 'PAUSED' ? 'bg-blue-100 text-blue-700 border border-blue-200' :
+                              'bg-slate-100 text-slate-700 border border-slate-200'
+                            }`}>
+                              {campaign.status}
+                            </span>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2 text-sm text-slate-600">
+                          <FiCalendar className="w-4 h-4" />
+                          <span>Created: {new Date(campaign.createdAt).toLocaleDateString('en-US', { 
+                            month: 'short', 
+                            day: 'numeric', 
+                            year: 'numeric' 
+                          })}</span>
+                        </div>
                       </div>
                     </div>
                   </div>
-                </div>
-              </motion.div>
+                </motion.div>
+              </div>
             )}
-          </div>
+
+            </div>
         </div>
       </motion.div>
 
@@ -1003,6 +1224,281 @@ const SequenceDetailsPage: React.FC = () => {
           onEditStep={handleEditStep}
           onDeleteStep={handleDeleteStep}
         />
+
+        {/* Prospect Selection Modal */}
+        <ModalWrapper
+          isOpen={showProspectSelectionModal}
+          onClose={() => {
+            setShowProspectSelectionModal(false);
+            setSelectedProspectsToAdd([]);
+          }}
+          maxWidth="max-w-4xl"
+        >
+          <div className="bg-white rounded-2xl">
+            {/* Header */}
+            <div className="px-6 py-4 border-b border-slate-200">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-xl font-semibold text-slate-900">Select Prospects</h3>
+                  <p className="text-sm text-slate-600 mt-1">Choose prospects to add to this campaign</p>
+                </div>
+                <button
+                  onClick={() => {
+                    setShowProspectSelectionModal(false);
+                    setSelectedProspectsToAdd([]);
+                  }}
+                  className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
+                >
+                  <FiTrash2 className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+
+            {/* Content */}
+            <div className="p-6 max-h-[60vh] overflow-y-auto">
+              {availableProspects.length === 0 ? (
+                <div className="text-center py-12">
+                  <FiUser className="w-12 h-12 text-slate-400 mx-auto mb-4" />
+                  <h4 className="text-lg font-medium text-slate-900 mb-2">No available prospects</h4>
+                  <p className="text-slate-600">There are no prospects available to add to this campaign.</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {/* Selection Summary */}
+                  <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-4">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-blue-700 font-medium">
+                        {selectedProspectsToAdd.length} prospect{selectedProspectsToAdd.length !== 1 ? 's' : ''} selected
+                      </span>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => setSelectedProspectsToAdd(availableProspects.map(p => p.id))}
+                          className="text-xs px-3 py-1 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition-colors"
+                        >
+                          Select All
+                        </button>
+                        <button
+                          onClick={() => setSelectedProspectsToAdd([])}
+                          className="text-xs px-3 py-1 bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 transition-colors"
+                        >
+                          Clear Selection
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Prospects Grid */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {availableProspects.map((prospect) => (
+                      <div
+                        key={prospect.id}
+                        onClick={() => handleProspectSelection(prospect.id)}
+                        className={`border-2 rounded-xl p-4 cursor-pointer transition-all duration-200 hover:shadow-md ${
+                          selectedProspectsToAdd.includes(prospect.id)
+                            ? 'border-blue-500 bg-blue-50 ring-2 ring-blue-100'
+                            : 'border-slate-200 bg-white hover:border-blue-300'
+                        }`}
+                      >
+                        <div className="flex items-start gap-3">
+                          <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-lg flex items-center justify-center text-white font-semibold text-sm flex-shrink-0">
+                            {prospect.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center justify-between mb-2">
+                              <h5 className="font-semibold text-slate-900 truncate">{prospect.name}</h5>
+                              <input
+                                type="checkbox"
+                                checked={selectedProspectsToAdd.includes(prospect.id)}
+                                onChange={() => handleProspectSelection(prospect.id)}
+                                className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                                onClick={(e) => e.stopPropagation()}
+                              />
+                            </div>
+                            <p className="text-sm text-slate-600 mb-1">{prospect.email}</p>
+                            <p className="text-sm text-slate-600 mb-1">
+                              {prospect.title} at {prospect.company}
+                            </p>
+                            <div className="flex items-center gap-3 mt-2">
+                              <span className={`px-2 py-1 rounded-full text-xs font-medium border ${
+                                prospect.status === 'NEW'
+                                  ? 'bg-blue-100 text-blue-700 border-blue-200'
+                                  : prospect.status === 'CONTACTED'
+                                  ? 'bg-yellow-100 text-yellow-700 border-yellow-200'
+                                  : prospect.status === 'REPLIED'
+                                  ? 'bg-green-100 text-green-700 border-green-200'
+                                  : 'bg-slate-100 text-slate-700 border-slate-200'
+                              }`}>
+                                {prospect.status}
+                              </span>
+                              <span className="text-xs text-slate-500">{prospect.location}</span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Footer */}
+            <div className="px-6 py-4 border-t border-slate-200 bg-slate-50">
+              <div className="flex items-center justify-between">
+                <div className="text-sm text-slate-600">
+                  {selectedProspectsToAdd.length > 0 && (
+                    <span>Ready to add {selectedProspectsToAdd.length} prospect{selectedProspectsToAdd.length !== 1 ? 's' : ''}</span>
+                  )}
+                </div>
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => {
+                      setShowProspectSelectionModal(false);
+                      setSelectedProspectsToAdd([]);
+                    }}
+                    className="px-4 py-2 text-slate-700 bg-white border border-slate-300 rounded-xl hover:bg-slate-50 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleAddSelectedProspects}
+                    disabled={selectedProspectsToAdd.length === 0}
+                    className="px-4 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl hover:from-blue-700 hover:to-indigo-700 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg hover:shadow-xl"
+                  >
+                    Add Selected Prospects
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </ModalWrapper>
+
+        {/* Schedule Modal */}
+        <ModalWrapper
+          isOpen={showScheduleModal}
+          onClose={() => {
+            setShowScheduleModal(false);
+            setScheduledDate('');
+            setScheduledTime('');
+            setTimezone('UTC');
+          }}
+          maxWidth="max-w-md"
+        >
+          <div className="bg-white rounded-2xl">
+            {/* Header */}
+            <div className="px-6 py-4 border-b border-slate-200">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-xl font-semibold text-slate-900">Schedule Campaign</h3>
+                  <p className="text-sm text-slate-600 mt-1">Choose when to start your campaign</p>
+                </div>
+                <button
+                  onClick={() => {
+                    setShowScheduleModal(false);
+                    setScheduledDate('');
+                    setScheduledTime('');
+                    setTimezone('UTC');
+                  }}
+                  className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
+                >
+                  <FiX className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+
+            {/* Content */}
+            <div className="p-6">
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">
+                    Schedule Date
+                  </label>
+                  <div className="relative">
+                    <FiCalendar className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 w-4 h-4" />
+                    <input
+                      type="date"
+                      value={scheduledDate}
+                      onChange={(e) => setScheduledDate(e.target.value)}
+                      min={new Date().toISOString().split('T')[0]}
+                      className="w-full pl-10 pr-4 py-3 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">
+                    Schedule Time
+                  </label>
+                  <div className="relative">
+                    <FiClock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 w-4 h-4" />
+                    <input
+                      type="time"
+                      value={scheduledTime}
+                      onChange={(e) => setScheduledTime(e.target.value)}
+                      className="w-full pl-10 pr-4 py-3 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">
+                    Timezone
+                  </label>
+                  <select
+                    value={timezone}
+                    onChange={(e) => setTimezone(e.target.value)}
+                    className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
+                  >
+                    <option value="UTC">UTC</option>
+                    <option value="America/New_York">🇺🇸 Eastern Time (ET)</option>
+                    <option value="America/Chicago">🇺🇸 Central Time (CT)</option>
+                    <option value="America/Denver">🇺🇸 Mountain Time (MT)</option>
+                    <option value="America/Los_Angeles">🇺🇸 Pacific Time (PT)</option>
+                    <option value="Europe/London">🇬🇧 London (GMT)</option>
+                    <option value="Europe/Paris">🇫🇷 Paris (CET)</option>
+                    <option value="Asia/Tokyo">🇯🇵 Tokyo (JST)</option>
+                    <option value="Australia/Sydney">🇦🇺 Sydney (AEDT)</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="px-6 py-4 border-t border-slate-200 bg-slate-50">
+              <div className="flex gap-3">
+                <button
+                  onClick={() => {
+                    setShowScheduleModal(false);
+                    setScheduledDate('');
+                    setScheduledTime('');
+                    setTimezone('UTC');
+                  }}
+                  className="flex-1 px-4 py-2 text-slate-700 bg-white border border-slate-300 rounded-xl hover:bg-slate-50 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => {
+                    if (!scheduledDate || !scheduledTime) {
+                      alert('Please select both date and time for scheduled campaigns.');
+                      return;
+                    }
+                    
+                    const scheduleText = `on ${new Date(scheduledDate).toLocaleDateString()} at ${scheduledTime} ${timezone}`;
+                    
+                    alert(`Campaign "${campaign.name}" scheduled to start ${scheduleText} (frontend demo)`);
+                    setShowScheduleModal(false);
+                    setScheduledDate('');
+                    setScheduledTime('');
+                    setTimezone('UTC');
+                  }}
+                  className="flex-1 px-4 py-2 bg-gradient-to-r from-indigo-500 to-purple-600 text-white rounded-xl hover:from-indigo-600 hover:to-purple-700 transition-all duration-200 shadow-lg hover:shadow-xl"
+                >
+                  Schedule Campaign
+                </button>
+              </div>
+            </div>
+          </div>
+        </ModalWrapper>
       </motion.div>
   );
 };

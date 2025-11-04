@@ -15,6 +15,10 @@ import TemplatesPage from './pages/TemplatesPage';
 import TasksPage from './pages/TasksPage';
 import SequenceDetailsPage from './pages/CampaignDetailsPage';
 import CampaignEmailPersonalizationPage from './pages/CampaignEmailPersonalizationPage';
+import ProspectStepsPersonalizationPage from './pages/ProspectStepsPersonalizationPage';
+import StepPersonalizationPage from './pages/StepPersonalizationPage';
+import StepProspectsPage from './pages/StepProspectsPage';
+import ProspectPersonalizer from './components/personalization/ProspectPersonalizer';
 import ProspectEditPage from './pages/ProspectEditPage';
 import SettingsPage from './pages/SettingsPage';
 import ProtectedRoute from './components/ProtectedRoute';
@@ -74,8 +78,10 @@ function App() {
             <Route path="tasks" element={<TasksPage />} />
             <Route path="campaigns/:id" element={<SequenceDetailsPage />} />
             <Route path="campaigns/:id/personalize/:stepNumber" element={<CampaignEmailPersonalizationPage />} />
-            <Route path="campaigns/:campaignId/prospects/:prospectId/edit" element={<ProspectEditPage />} />
-            <Route path="settings" element={<SettingsPage />} />
+            <Route path="campaigns/:id/personalize/:stepNumber/prospect/:prospectId" element={<ProspectPersonalizer />} />            <Route path="campaigns/:campaignId/prospects/:prospectId/edit" element={<ProspectEditPage />} />
+            <Route path="campaigns/:id/prospects/:prospectId/steps" element={<ProspectStepsPersonalizationPage />} />
+            <Route path="campaigns/:id/steps/:stepNumber/personalize" element={<StepPersonalizationPage />} />
+            <Route path="campaigns/:id/steps/:stepId/prospects" element={<StepProspectsPage />} />            <Route path="settings" element={<SettingsPage />} />
           </Route>
 
           {/* Catch all */}

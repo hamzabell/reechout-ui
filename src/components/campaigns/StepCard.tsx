@@ -123,11 +123,11 @@ const StepCard: React.FC<StepCardProps> = ({
                         if (onPersonalize) {
                           onPersonalize();
                         } else if (campaignId) {
-                          navigate(`/dashboard/campaigns/${campaignId}/personalize/${step.stepNumber}`);
+                          navigate(`/dashboard/campaigns/${campaignId}/steps/${step.stepNumber}/personalize`);
                         }
                       }}
                       className="btn-icon text-slate-600 hover:text-purple-600 hover:bg-purple-50"
-                      title="Edit personalized emails"
+                      title="Configure step personalization"
                     >
                       <FiZap className="w-4 h-4" />
                     </button>
