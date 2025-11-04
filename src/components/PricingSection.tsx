@@ -5,7 +5,7 @@ import Icon from './Icon';
 
 interface PricingCardProps {
   title: string;
-  price: string;
+  price: string | React.ReactNode;
   description: string;
   features: string[];
   highlighted?: boolean;
@@ -78,7 +78,7 @@ const PricingSection: React.FC = () => {
   const [isAnnual, setIsAnnual] = useState(false);
 
   const monthlyPrice = 18;
-  const annualPrice = Math.round(monthlyPrice * 12 * 0.8); // 20% discount
+  const annualPrice = 15 * 12; // $15 per month when billed annually
   const monthlyAnnualPrice = Math.round(annualPrice / 12);
 
   return (
@@ -95,48 +95,53 @@ const PricingSection: React.FC = () => {
               pricing
             </span>
           </h2>
-          <p className="text-xl text-slate-600 max-w-3xl mx-auto leading-relaxed">
-            Start for free, upgrade when you're ready to scale
+          <p className="text-xl text-slate-600 max-w-3xl mx-auto leading-relaxed mb-6">
+            Start with a 30-day trial, choose your plan later
           </p>
 
           {/* Billing Toggle */}
           <div className="flex items-center justify-center space-x-6">
-            <span className={`text-lg font-medium ${!isAnnual ? 'text-slate-900' : 'text-slate-500'}`}>
+            <span className={`text-lg font-medium transition-colors ${!isAnnual ? 'text-blue-600 font-semibold' : 'text-slate-500'}`}>
               Monthly
             </span>
             <button
               onClick={() => setIsAnnual(!isAnnual)}
-              className="relative inline-flex h-8 w-14 items-center rounded-full bg-slate-200 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+              className={`relative inline-flex h-8 w-14 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
+                isAnnual ? 'bg-blue-600' : 'bg-slate-300'
+              }`}
             >
               <span
-                className={`inline-block h-6 w-6 transform rounded-full bg-white shadow-sm transition-transform ${
+                className={`inline-block h-6 w-6 transform rounded-full bg-white shadow-lg transition-transform ${
                   isAnnual ? 'translate-x-7' : 'translate-x-1'
                 }`}
               />
             </button>
-            <span className={`text-lg font-medium ${isAnnual ? 'text-slate-900' : 'text-slate-500'}`}>
+            <span className={`text-lg font-medium transition-colors ${isAnnual ? 'text-blue-600 font-semibold' : 'text-slate-500'}`}>
               Annual
-              <span className="ml-2 inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-emerald-100 text-emerald-700">
-                Save 20%
+              <span className={`ml-2 inline-flex items-center px-3 py-1 rounded-full text-sm font-medium transition-colors ${
+                isAnnual ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-600'
+              }`}>
+                Save 17%
               </span>
             </span>
           </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-20">
-          {/* Free Plan */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-20 max-w-4xl mx-auto">
+          {/* 30-Day Trial Plan */}
           <PricingCard
-            title="Free"
+            title="30-Day Trial"
             price="$0"
-            description="Perfect for getting started"
+            description="Full access for 30 days"
             features={[
-              "Up to 50 emails per month",
-              "Basic AI personalization",
-              "Simple analytics",
-              "Email tracking",
-              "Community support"
+              "Unlimited emails during trial",
+              "Advanced AI personalization",
+              "Detailed analytics & reporting", 
+              "Email tracking & deliverability monitoring",
+              "Priority support",
+              "Custom templates"
             ]}
-            buttonText="Get Started"
+            buttonText="Start Free Trial"
             buttonVariant="secondary"
             to="/login"
           />
@@ -144,41 +149,24 @@ const PricingSection: React.FC = () => {
           {/* Pro Plan */}
           <PricingCard
             title="Pro"
-            price={isAnnual ? `$${monthlyAnnualPrice}` : `$${monthlyPrice}`}
-            description={isAnnual ? "per month (billed annually)" : "per month"}
+            price={isAnnual ? (
+              <div className="flex items-center justify-center gap-2">
+                <span className="text-4xl font-bold text-slate-900">$180</span>
+                <span className="text-xl text-slate-500 line-through">$216</span>
+              </div>
+            ) : `$18`}
+            description={isAnnual ? "billed annually" : "per month"}
             features={[
               "Unlimited emails",
               "Advanced AI personalization",
               "Detailed analytics & reporting",
               "Email tracking & deliverability monitoring",
               "Priority support",
-              "Custom templates",
-              "API access",
-              "Team collaboration"
+              "Custom templates"
             ]}
             highlighted={true}
-            buttonText="Start Free Trial"
+            buttonText="Choose Pro Plan"
             buttonVariant="primary"
-            to="/login"
-          />
-
-          {/* Enterprise Plan */}
-          <PricingCard
-            title="Enterprise"
-            price="Custom"
-            description="For large teams"
-            features={[
-              "Everything in Pro",
-              "Custom AI training",
-              "Dedicated account manager",
-              "SLA guarantee",
-              "Custom integrations",
-              "Advanced security features",
-              "White-label options",
-              "Priority feature requests"
-            ]}
-            buttonText="Contact Sales"
-            buttonVariant="secondary"
             to="/login"
           />
         </div>
@@ -188,7 +176,7 @@ const PricingSection: React.FC = () => {
           <div className="flex flex-col sm:flex-row items-center justify-center space-y-4 sm:space-y-0 sm:space-x-8 text-sm text-slate-600">
             <div className="flex items-center space-x-3 bg-white px-4 py-3 rounded-xl border border-slate-200">
               <Icon name="refresh" className="text-blue-600" size="sm" />
-              <span className="font-medium">30-day free trial on Pro</span>
+              <span className="font-medium">30-day free trial</span>
             </div>
             <div className="flex items-center space-x-3 bg-white px-4 py-3 rounded-xl border border-slate-200">
               <Icon name="x" className="text-blue-600" size="sm" />
@@ -196,7 +184,7 @@ const PricingSection: React.FC = () => {
             </div>
             <div className="flex items-center space-x-3 bg-white px-4 py-3 rounded-xl border border-slate-200">
               <Icon name="shield" className="text-blue-600" size="sm" />
-              <span className="font-medium">30-day money back guarantee</span>
+              <span className="font-medium">No credit card required</span>
             </div>
           </div>
         </div>
