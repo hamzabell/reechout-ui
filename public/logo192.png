@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="200" height="200">
+  <defs>
+    <linearGradient id="logoGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#3B82F6;stop-opacity:1" />
+      <stop offset="50%" style="stop-color:#8B5CF6;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#EC4899;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="shadowGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#1E40AF;stop-opacity:0.3" />
+      <stop offset="100%" style="stop-color:#831843;stop-opacity:0.3" />
+    </linearGradient>
+  </defs>
+
+  <!-- Shadow Layer -->
+  <rect x="42" y="42" width="116" height="116" rx="24" fill="url(#shadowGradient)" transform="translate(4, 4)"/>
+
+  <!-- Main Background -->
+  <rect x="40" y="40" width="120" height="120" rx="24" fill="white"/>
+
+  <!-- Logo Letter R -->
+  <path d="M 70 60 L 70 140 L 90 140 L 90 110 L 105 110 L 125 140 L 145 140 L 123 107 C 135 102 140 92 140 82 C 140 68 130 60 115 60 Z M 90 75 L 110 75 C 118 75 122 79 122 85 C 122 91 118 95 110 95 L 90 95 Z" fill="url(#logoGradient)"/>
+
+  <!-- Email/Mail Icon Integration -->
+  <g transform="translate(55, 115)">
+    <rect x="0" y="0" width="90" height="60" rx="8" fill="url(#logoGradient)" opacity="0.8"/>
+    <path d="M 0 8 L 45 35 L 90 8" stroke="white" stroke-width="2" fill="none"/>
+  </g>
+</svg>

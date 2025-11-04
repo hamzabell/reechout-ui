@@ -1,0 +1,74 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="200" height="200">
+  <defs>
+    <!-- Primary gradient - bold -->
+    <linearGradient id="primaryGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#3B82F6;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#8B5CF6;stop-opacity:1" />
+    </linearGradient>
+
+    <!-- Accent gradient - vibrant -->
+    <linearGradient id="accentGrad" x1="0%" y1="100%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#EC4899;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#8B5CF6;stop-opacity:1" />
+    </linearGradient>
+
+    <!-- Mask for geometric cutouts -->
+    <mask id="cutoutMask">
+      <rect width="200" height="200" fill="white"/>
+      <polygon points="100,60 120,85 115,110 100,100 85,110 80,85" fill="black"/>
+    </mask>
+  </defs>
+
+  <!-- Geometric background pattern -->
+  <g transform="translate(100, 100)">
+    <!-- Outer hexagon frame -->
+    <polygon points="0,-75 65,-37.5 65,37.5 0,75 -65,37.5 -65,-37.5"
+             fill="url(#primaryGrad)" opacity="0.1"/>
+
+    <!-- Inner hexagon -->
+    <polygon points="0,-65 56.3,-32.5 56.3,32.5 0,65 -56.3,32.5 -56.3,-32.5"
+             fill="url(#primaryGrad)"/>
+
+    <!-- Bold geometric R -->
+    <g>
+      <!-- Main R body - geometric style -->
+      <path d="M -25,-35 L -25,35 L -10,35 L -10,15 L 5,15 L 25,35 L 40,35 L 18,10 C 30,5 35,-8 35,-20 Q 35,-35 20,-35 L -10,-35 Z"
+            fill="white" stroke="none"/>
+
+      <!-- R bowl - geometric curve -->
+      <path d="M -10,-20 L 15,-20 Q 25,-20 25,-10 Q 25,0 15,0 L -10,0 Z"
+            fill="url(#accentGrad)"/>
+
+      <!-- Diagonal leg - sharp geometric -->
+      <polygon points="-10,15 5,15 35,40 25,40" fill="url(#accentGrad)"/>
+    </g>
+
+    <!-- Email send icon - integrated -->
+    <g transform="translate(35, -25)">
+      <polygon points="0,0 20,0 20,12 10,18 0,12" fill="white" opacity="0.9"/>
+      <path d="M 0,0 L 10,6 L 20,0" stroke="url(#accentGrad)" stroke-width="2" fill="none"/>
+    </g>
+
+    <!-- Connection dots - geometric pattern -->
+    <g opacity="0.7">
+      <circle cx="-45" cy="-45" r="3" fill="#EC4899"/>
+      <circle cx="45" cy="-45" r="3" fill="#3B82F6"/>
+      <circle cx="45" cy="45" r="3" fill="#8B5CF6"/>
+      <circle cx="-45" cy="45" r="3" fill="#EC4899"/>
+    </g>
+
+    <!-- Subtle animated pulse -->
+    <polygon points="0,-60 52,-30 52,30 0,60 -52,30 -52,-30"
+             fill="none" stroke="white" stroke-width="1" opacity="0.3">
+      <animate attributeName="opacity" values="0.3;0.6;0.3" dur="3s" repeatCount="indefinite"/>
+    </polygon>
+
+    <!-- Corner accents -->
+    <g opacity="0.5">
+      <path d="M -70,-70 L -55,-70 L -70,-55 Z" fill="url(#accentGrad)"/>
+      <path d="M 70,-70 L 55,-70 L 70,-55 Z" fill="url(#accentGrad)"/>
+      <path d="M 70,70 L 55,70 L 70,55 Z" fill="url(#accentGrad)"/>
+      <path d="M -70,70 L -55,70 L -70,55 Z" fill="url(#accentGrad)"/>
+    </g>
+  </g>
+</svg>

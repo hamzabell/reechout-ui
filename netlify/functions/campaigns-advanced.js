@@ -1,0 +1,180 @@
+const { PrismaClient } = require('@prisma/client');
+const prisma = new PrismaClient();
+
+exports.handler = async (event, context) => {
+  // Handle CORS
+  const corsHeaders = {
+    'Access-Control-Allow-Origin': process.env.FRONTEND_URL || '*',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+    'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+    'Content-Type': 'application/json',
+  };
+
+  if (event.httpMethod === 'OPTIONS') {
+    return {
+      statusCode: 200,
+      headers: corsHeaders,
+      body: '',
+    };
+  }
+
+  try {
+    const { httpMethod } = event;
+    const userId = event.headers.authorization?.replace('Bearer ', '') || 'mock-user-123';
+
+    // For development, allow requests without authentication
+    // In production, you should uncomment the authentication check
+    /*
+    if (!userId) {
+      return {
+        statusCode: 401,
+        headers: corsHeaders,
+        body: JSON.stringify({ error: 'Unauthorized' }),
+      };
+    }
+    */
+
+    switch (httpMethod) {
+      case 'GET':
+        return await getCampaignsAdvanced(userId, event.queryStringParameters);
+      default:
+        return {
+          statusCode: 405,
+          headers: corsHeaders,
+          body: JSON.stringify({ error: 'Method not allowed' }),
+        };
+    }
+  } catch (error) {
+    console.error('Campaigns Advanced API error:', error);
+    return {
+      statusCode: 500,
+      headers: corsHeaders,
+      body: JSON.stringify({ error: 'Internal server error' }),
+    };
+  }
+};
+
+async function getCampaignsAdvanced(userId, queryParams) {
+  try {
+    const {
+      page = 1,
+      limit = 50,
+      status,
+      search,
+      sortBy = 'createdAt',
+      sortOrder = 'desc',
+      startDate,
+      endDate,
+      offset = 0
+    } = queryParams;
+
+    const skip = parseInt(offset) || (parseInt(page) - 1) * parseInt(limit);
+
+    // Build where clause
+    const where = {
+      createdBy: userId,
+    };
+
+    if (status) {
+      where.status = status;
+    }
+
+    if (search) {
+      where.OR = [
+        { name: { contains: search, mode: 'insensitive' } },
+        { description: { contains: search, mode: 'insensitive' } },
+      ];
+    }
+
+    // Add date range filter
+    if (startDate || endDate) {
+      where.createdAt = {};
+      if (startDate) {
+        where.createdAt.gte = new Date(startDate);
+      }
+      if (endDate) {
+        where.createdAt.lte = new Date(endDate);
+      }
+    }
+
+    // Build order by clause
+    const orderBy = {};
+    orderBy[sortBy] = sortOrder;
+
+    const [campaigns, total] = await Promise.all([
+      prisma.campaign.findMany({
+        where,
+        orderBy,
+        skip,
+        take: parseInt(limit),
+        include: {
+          creator: {
+            select: { id: true, name: true, email: true },
+          },
+          steps: {
+            orderBy: { stepNumber: 'asc' },
+            include: {
+              emailAction: {
+                include: {
+                  template: {
+                    select: { id: true, name: true },
+                  },
+                },
+              },
+              taskAction: true,
+            },
+          },
+          campaignProspects: {
+            include: {
+              prospect: {
+                select: { id: true, name: true, email: true },
+              },
+            },
+          },
+        },
+      }),
+      prisma.campaign.count({ where }),
+    ]);
+
+    // Add statistics to each campaign
+    const enrichedCampaigns = campaigns.map(campaign => ({
+      ...campaign,
+      statistics: {
+        totalSteps: campaign.steps.length,
+        emailSteps: campaign.steps.filter(step => step.emailAction).length,
+        taskSteps: campaign.steps.filter(step => step.taskAction).length,
+        totalProspects: campaign.campaignProspects.length,
+        activeProspects: campaign.campaignProspects.filter(cp => cp.status === 'ACTIVE').length,
+        completedProspects: campaign.campaignProspects.filter(cp => cp.status === 'COMPLETED').length,
+      },
+    }));
+
+    const hasMore = skip + enrichedCampaigns.length < total;
+
+    const corsHeaders = {
+      'Access-Control-Allow-Origin': process.env.FRONTEND_URL || '*',
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+      'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+      'Content-Type': 'application/json',
+    };
+
+    return {
+      statusCode: 200,
+      headers: corsHeaders,
+      body: JSON.stringify({
+        campaigns: enrichedCampaigns,
+        total,
+        hasMore,
+        pagination: {
+          page: parseInt(page),
+          limit: parseInt(limit),
+          total,
+          totalPages: Math.ceil(total / parseInt(limit)),
+        },
+      }),
+    };
+  } catch (error) {
+    console.error('Get campaigns advanced error:', error);
+    throw error;
+  }
+}

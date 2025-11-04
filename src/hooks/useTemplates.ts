@@ -1,0 +1,113 @@
+import useSWR from 'swr';
+import { EmailTemplate } from '../types';
+import { swrConfig, staticConfig } from '../lib/swr-config';
+import { useSWRMutation, useOptimisticMutation } from './useSWRMutation';
+
+// Hook for fetching all email templates
+export const useTemplates = () => {
+  const { data, error, isLoading, isValidating, mutate } = useSWR<{
+    templates: EmailTemplate[];
+  }>('/templates', staticConfig);
+
+  return {
+    templates: data?.templates || [],
+    isLoading,
+    isValidating,
+    error,
+    mutate,
+  };
+};
+
+// Hook for fetching a single template
+export const useTemplate = (id: string) => {
+  const { data, error, isLoading, isValidating, mutate } = useSWR<{
+    template: EmailTemplate;
+  }>(id ? [`/templates/${id}`] : null, staticConfig);
+
+  return {
+    template: data?.template,
+    isLoading,
+    isValidating,
+    error,
+    mutate,
+  };
+};
+
+// Hook for creating templates
+export const useCreateTemplate = () => {
+  return useOptimisticMutation(
+    '/templates',
+    'POST',
+    (newTemplate: EmailTemplate) => (current: { templates: EmailTemplate[] }) => ({
+      templates: [newTemplate, ...current.templates],
+    }),
+    {
+      invalidateQueries: ['/templates'],
+    }
+  );
+};
+
+// Hook for updating templates
+export const useUpdateTemplate = (templateId: string) => {
+  return useOptimisticMutation(
+    `/templates/${templateId}`,
+    'PUT',
+    (variables: Partial<EmailTemplate>) => (current: { templates: EmailTemplate[] }) => ({
+      templates: current.templates.map(template =>
+        template.id === templateId
+          ? { ...template, ...variables, updatedAt: new Date().toISOString() }
+          : template
+      ),
+    }),
+    {
+      invalidateQueries: [
+        `/templates/${templateId}`,
+        '/templates'
+      ],
+    }
+  );
+};
+
+// Hook for deleting templates
+export const useDeleteTemplate = (templateId: string) => {
+  return useOptimisticMutation(
+    `/templates/${templateId}`,
+    'DELETE',
+    () => (current: { templates: EmailTemplate[] }) => ({
+      templates: current.templates.filter(template => template.id !== templateId),
+    }),
+    {
+      invalidateQueries: ['/templates'],
+    }
+  );
+};
+
+// Hook for duplicating templates
+export const useDuplicateTemplate = () => {
+  return useSWRMutation(
+    '/templates',
+    'POST',
+    {
+      invalidateQueries: ['/templates'],
+    }
+  );
+};
+
+// Hook for testing templates
+export const useTestTemplate = (templateId: string) => {
+  return useSWRMutation(
+    `/templates/${templateId}/test`,
+    'POST'
+  );
+};
+
+// Hook for AI-generated templates
+export const useGenerateTemplate = () => {
+  return useSWRMutation(
+    '/api/ai/generate-template',
+    'POST',
+    {
+      invalidateQueries: ['/templates'],
+    }
+  );
+};
