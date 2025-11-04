@@ -1,4 +1,4 @@
-// This is your Prisma schema file for the Email Campaign Management System
+// This is your Prisma schema file for the Email Sequence Management System
 // learn more about it in the docs: https://pris.ly/d/prisma-schema
 
 generator client {
@@ -26,7 +26,7 @@ model User {
   // Relations
   emailTemplates    EmailTemplate[]
   prospects         Prospect[]
-  campaigns         Campaign[]
+  campaigns         Sequence[]
   tasks             TaskAssignment[]
   sessions          Session[]
 
@@ -97,31 +97,31 @@ model Prospect {
   @@map("prospects")
 }
 
-// Campaign Management
-model Campaign {
+// Sequence Management
+model Sequence {
   id              String           @id @default(cuid())
   name            String
   description     String?
-  status          CampaignStatus   @default(DRAFT)
+  status          SequenceStatus   @default(DRAFT)
   createdBy       String           // User ID
-  startedAt       DateTime?        // When campaign was started
-  pausedAt        DateTime?        // When campaign was paused (if applicable)
-  completedAt     DateTime?        // When campaign was completed
+  startedAt       DateTime?        // When sequence was started
+  pausedAt        DateTime?        // When sequence was paused (if applicable)
+  completedAt     DateTime?        // When sequence was completed
   createdAt       DateTime         @default(now())
   updatedAt       DateTime         @updatedAt
 
   // Relations
   creator         User             @relation(fields: [createdBy], references: [id], onDelete: Cascade)
-  steps           CampaignStep[]
+  steps           SequenceStep[]
   campaignProspects CampaignProspect[]
 
   @@map("campaigns")
 }
 
-// Campaign Steps - Individual steps in a campaign sequence
-model CampaignStep {
+// Sequence Steps - Individual steps in a sequence
+model SequenceStep {
   id              String        @id @default(cuid())
-  campaignId      String
+  sequenceId      String
   stepNumber      Int           // Order in sequence (1, 2, 3, etc.)
   delayDays       Int           @default(1) // Number of days to wait after previous step
   name            String?       // Optional name for the step
@@ -130,15 +130,15 @@ model CampaignStep {
   updatedAt       DateTime      @updatedAt
 
   // Relations
-  campaign        Campaign      @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  sequence        Sequence      @relation(fields: [sequenceId], references: [id], onDelete: Cascade)
   emailAction     StepEmailAction?
   taskAction      StepTaskAction?
 
-  @@unique([campaignId, stepNumber]) // Ensure step numbers are unique per campaign
+  @@unique([sequenceId, stepNumber]) // Ensure step numbers are unique per sequence
   @@map("campaign_steps")
 }
 
-// Step Email Action - Email configuration for a campaign step
+// Step Email Action - Email configuration for a sequence step
 model StepEmailAction {
   id                  String   @id @default(cuid())
   stepId              String   @unique
@@ -150,14 +150,14 @@ model StepEmailAction {
   updatedAt           DateTime @updatedAt
 
   // Relations
-  step                CampaignStep @relation(fields: [stepId], references: [id], onDelete: Cascade)
+  step                SequenceStep @relation(fields: [stepId], references: [id], onDelete: Cascade)
   template            EmailTemplate? @relation(fields: [templateId], references: [id])
   personalizedEmails  PersonalizedEmail[]
 
   @@map("step_email_actions")
 }
 
-// Step Task Action - Task configuration for a campaign step
+// Step Task Action - Task configuration for a sequence step
 model StepTaskAction {
   id                  String   @id @default(cuid())
   stepId              String   @unique
@@ -168,13 +168,13 @@ model StepTaskAction {
   updatedAt           DateTime @updatedAt
 
   // Relations
-  step                CampaignStep @relation(fields: [stepId], references: [id], onDelete: Cascade)
+  step                SequenceStep @relation(fields: [stepId], references: [id], onDelete: Cascade)
   tasks               Task[]
 
   @@map("step_task_actions")
 }
 
-// Campaign-Prospect Relationship with Personalized Emails
+// Sequence-Prospect Relationship with Personalized Emails
 model CampaignProspect {
   id                  String   @id @default(cuid())
   campaignId          String
@@ -183,11 +183,11 @@ model CampaignProspect {
   status              ProspectStatus @default(ACTIVE)
 
   // Relations
-  campaign            Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  sequence            Sequence @relation(fields: [campaignId], references: [id], onDelete: Cascade)
   prospect            Prospect @relation(fields: [prospectId], references: [id], onDelete: Cascade)
   personalizedEmails  PersonalizedEmail[]
 
-  @@unique([campaignId, prospectId]) // Each prospect can only be in a campaign once
+  @@unique([campaignId, prospectId]) // Each prospect can only be in a sequence once
   @@map("campaign_prospects")
 }
 
@@ -270,17 +270,17 @@ model EmailLog {
 }
 
 // Enums
-enum CampaignStatus {
-  DRAFT       // Campaign is being created
-  ACTIVE      // Campaign is running
-  PAUSED      // Campaign is temporarily stopped
-  COMPLETED   // Campaign has finished all steps
-  CANCELLED   // Campaign was cancelled
+enum SequenceStatus {
+  DRAFT       // Sequence is being created
+  ACTIVE      // Sequence is running
+  PAUSED      // Sequence is temporarily stopped
+  COMPLETED   // Sequence has finished all steps
+  CANCELLED   // Sequence was cancelled
 }
 
 enum ProspectStatus {
-  ACTIVE      // Prospect is active in campaign
-  REMOVED     // Prospect was removed from campaign
+  ACTIVE      // Prospect is active in sequence
+  REMOVED     // Prospect was removed from sequence
   COMPLETED   // Prospect has completed all steps
 }
 

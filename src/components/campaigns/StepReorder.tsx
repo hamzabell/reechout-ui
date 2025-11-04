@@ -157,7 +157,7 @@ const StepReorder: React.FC<StepReorderProps> = ({
           <div className="border-b border-gray-200 px-6 py-4 bg-gradient-to-r from-purple-50 to-indigo-50">
             <div className="flex items-center justify-between">
               <div>
-                <h2 className="text-xl font-bold text-gray-900">Reorder Campaign Steps</h2>
+                <h2 className="text-xl font-bold text-gray-900">Reorder Sequence Steps</h2>
                 <p className="text-sm text-gray-600 mt-1">Drag and drop or use arrows to reorder steps</p>
               </div>
               <div className="flex items-center gap-2">

@@ -24,20 +24,7 @@ const SequencesStatsBar: React.FC<SequencesStatsBarProps> = ({
       icon: 'fas fa-bullhorn',
       color: 'text-slate-600',
       bgColor: 'bg-slate-50',
-    },
-    {
-      label: 'Active',
-      value: activeSequences,
-      icon: 'fas fa-play-circle',
-      color: 'text-blue-600',
-      bgColor: 'bg-blue-50',
-    },
-    {
-      label: 'Completed',
-      value: completedSequences,
-      icon: 'fas fa-check-circle',
-      color: 'text-emerald-600',
-      bgColor: 'bg-emerald-50',
+      description: `${activeSequences} active`,
     },
     {
       label: 'Emails Sent',
@@ -45,13 +32,7 @@ const SequencesStatsBar: React.FC<SequencesStatsBarProps> = ({
       icon: 'fas fa-paper-plane',
       color: 'text-indigo-600',
       bgColor: 'bg-indigo-50',
-    },
-    {
-      label: 'Avg. Open Rate',
-      value: `${averageOpenRate}%`,
-      icon: 'fas fa-envelope-open',
-      color: 'text-purple-600',
-      bgColor: 'bg-purple-50',
+      description: 'Total delivered',
     },
     {
       label: 'Avg. Reply Rate',
@@ -59,6 +40,7 @@ const SequencesStatsBar: React.FC<SequencesStatsBarProps> = ({
       icon: 'fas fa-reply',
       color: 'text-orange-600',
       bgColor: 'bg-orange-50',
+      description: `${averageOpenRate}% open rate`,
     },
   ];
 
@@ -76,22 +58,23 @@ const SequencesStatsBar: React.FC<SequencesStatsBarProps> = ({
           </div>
         </div>
 
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
           {stats.map((stat, index) => (
-            <div key={index} className={`${stat.bgColor} rounded-2xl p-6 border border-slate-200 hover-lift group`}>
-              <div className="flex items-center justify-between mb-4">
+            <div key={index} className={`${stat.bgColor} rounded-2xl p-8 border border-slate-200 hover-lift group`}>
+              <div className="flex items-center justify-between mb-6">
                 <div className={`${stat.color} opacity-80 group-hover:scale-110 transition-transform duration-300`}>
-                  <i className={`${stat.icon} text-xl`} />
+                  <i className={`${stat.icon} text-2xl`} />
                 </div>
-                {stat.label === 'Active' && (
+                {stat.label === 'Total Sequences' && (
                   <div className="flex items-center">
-                    <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse mr-1" />
-                    <span className="text-xs text-emerald-600 font-medium">Live</span>
+                    <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse mr-2" />
+                    <span className="text-xs text-emerald-600 font-medium">Active</span>
                   </div>
                 )}
               </div>
-              <div className="text-3xl font-bold text-slate-900 mb-2">{stat.value}</div>
-              <div className="text-sm text-slate-700 font-medium">{stat.label}</div>
+              <div className="text-4xl font-bold text-slate-900 mb-3">{stat.value}</div>
+              <div className="text-lg text-slate-700 font-medium mb-2">{stat.label}</div>
+              <div className="text-sm text-slate-500">{stat.description}</div>
             </div>
           ))}
         </div>

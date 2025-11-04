@@ -196,15 +196,15 @@ Click "Deploy site" and wait for deployment to complete.
 ### ✅ Database Layer (Prisma + PostgreSQL)
 - **Users**: Authentication and session management
 - **Leads**: Comprehensive lead management with scoring
-- **Campaigns**: Email campaign creation and tracking
+- **Sequences**: Email sequence creation and tracking
 - **Templates**: Reusable email templates
-- **Analytics**: Campaign performance tracking
+- **Analytics**: Sequence performance tracking
 - **Activities**: Complete audit trail
 
 ### ✅ API Layer (Netlify Functions)
 - **Authentication**: JWT-based auth with refresh tokens
 - **Leads API**: CRUD operations with advanced filtering
-- **Campaigns API**: Campaign management and execution
+- **Sequences API**: Sequence management and execution
 - **AI API**: Lemonfox.ai integration for research and personalization
 - **Email API**: Email sending and tracking
 - **Analytics API**: Performance metrics and reporting
@@ -245,10 +245,10 @@ Click "Deploy site" and wait for deployment to complete.
 - `POST /api/ai/generate-template` - Generate email template
 - `POST /api/ai/analyze-email` - Analyze email effectiveness
 
-### Campaigns
-- `POST /api/campaigns/create-campaign` - Create campaign
-- `GET /api/campaigns/list-campaigns` - List campaigns
-- `POST /api/campaigns/send-campaign` - Send campaign
+### Sequences
+- `POST /api/campaigns/create-sequence` - Create sequence
+- `GET /api/campaigns/list-sequences` - List sequences
+- `POST /api/campaigns/send-sequence` - Send sequence
 
 ---
 
@@ -319,7 +319,7 @@ Consider adding:
 
 ### Advanced Features
 1. **A/B Testing**: Email subject and content testing
-2. **Drip Campaigns**: Automated follow-up sequences
+2. **Drip Sequences**: Automated follow-up sequences
 3. **Lead Scoring**: Advanced lead scoring algorithms
 4. **Integration Hub**: Connect with CRM systems
 5. **Mobile App**: React Native mobile application

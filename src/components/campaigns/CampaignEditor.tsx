@@ -130,15 +130,15 @@ const CampaignEditor: React.FC<CampaignEditorProps> = ({
           <div className="border-b border-gray-200 px-6 py-4 bg-gradient-to-r from-blue-50 to-indigo-50">
             <div className="flex items-center justify-between">
               <div>
-                <h2 className="text-xl font-bold text-gray-900">Edit Campaign</h2>
-                <p className="text-sm text-gray-600 mt-1">Update campaign details and settings</p>
+                <h2 className="text-xl font-bold text-gray-900">Edit Sequence</h2>
+                <p className="text-sm text-gray-600 mt-1">Update sequence details and settings</p>
               </div>
               <div className="flex items-center gap-2">
                 {onDelete && campaign.status === 'DRAFT' && (
                   <button
                     onClick={onDelete}
                     className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                    title="Delete campaign"
+                    title="Delete sequence"
                   >
                     <FiTrash2 className="w-5 h-5" />
                   </button>
@@ -183,13 +183,13 @@ const CampaignEditor: React.FC<CampaignEditorProps> = ({
               <div className="space-y-6">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Campaign Name
+                    Sequence Name
                   </label>
                   <input
                     type="text"
                     value={editedCampaign.name}
                     onChange={(e) => updateCampaign({ name: e.target.value })}
-                    placeholder="Enter campaign name..."
+                    placeholder="Enter sequence name..."
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   />
                 </div>
@@ -201,7 +201,7 @@ const CampaignEditor: React.FC<CampaignEditorProps> = ({
                   <textarea
                     value={editedCampaign.description || ''}
                     onChange={(e) => updateCampaign({ description: e.target.value })}
-                    placeholder="Describe your campaign objectives and what it aims to achieve..."
+                    placeholder="Describe your sequence objectives and what it aims to achieve..."
                     rows={4}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   />
@@ -226,7 +226,7 @@ const CampaignEditor: React.FC<CampaignEditorProps> = ({
 
                 {/* Campaign Timeline Info */}
                 <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
-                  <h4 className="font-medium text-gray-900 mb-3">Campaign Timeline</h4>
+                  <h4 className="font-medium text-gray-900 mb-3">Sequence Timeline</h4>
                   <div className="space-y-2 text-sm">
                     <div className="flex justify-between">
                       <span className="text-gray-600">Created:</span>
@@ -322,7 +322,7 @@ const CampaignEditor: React.FC<CampaignEditorProps> = ({
                       <h4 className="font-medium text-blue-900">Delivery Settings</h4>
                       <p className="text-sm text-blue-700 mt-1">
                         These settings control when and how many emails are sent per day.
-                        Campaigns will respect the daily limit and send at the specified time in the chosen timezone.
+                        Sequences will respect the daily limit and send at the specified time in the chosen timezone.
                       </p>
                     </div>
                   </div>
@@ -335,9 +335,9 @@ const CampaignEditor: React.FC<CampaignEditorProps> = ({
               <div className="space-y-6">
                 <div className="flex items-center justify-between mb-6">
                   <div>
-                    <h3 className="text-lg font-semibold text-gray-900">Campaign Prospects</h3>
+                    <h3 className="text-lg font-semibold text-gray-900">Sequence Prospects</h3>
                     <p className="text-sm text-gray-600 mt-1">
-                      Manage prospects for this campaign
+                      Manage prospects for this sequence
                     </p>
                   </div>
                   <button
@@ -431,7 +431,7 @@ const CampaignEditor: React.FC<CampaignEditorProps> = ({
                     <div>
                       <h4 className="font-medium text-blue-900">Prospect Management</h4>
                       <p className="text-sm text-blue-700 mt-1">
-                        Add prospects to your campaign and track their engagement.
+                        Add prospects to your sequence and track their engagement.
                         You can import prospects from CSV, add them manually, or sync from your CRM.
                       </p>
                     </div>
@@ -445,7 +445,7 @@ const CampaignEditor: React.FC<CampaignEditorProps> = ({
           <div className="border-t border-gray-200 px-6 py-4 bg-gray-50">
             <div className="flex justify-between items-center">
               <div className="text-sm text-gray-600">
-                Campaign ID: {editedCampaign.id}
+                Sequence ID: {editedCampaign.id}
               </div>
               <div className="flex gap-3">
                 <button

@@ -149,20 +149,18 @@ const CampaignCard: React.FC<SequenceCardProps> = ({
         </div>
       </div>
 
-      {/* Performance Metrics */}
+      {/* Performance Metrics - Reduced from 3 to 2 cards */}
       <div className="px-6 pb-6">
-        <div className="grid grid-cols-3 gap-4 mb-4">
-          <div className="text-center p-3 bg-slate-50 rounded-xl">
-            <div className="text-2xl font-bold text-slate-900">{campaign.sent}</div>
-            <div className="text-xs text-slate-600 font-medium">Sent</div>
+        <div className="grid grid-cols-2 gap-6 mb-6">
+          <div className="text-center p-4 bg-gradient-to-br from-slate-50 to-blue-50 rounded-xl border border-slate-200">
+            <div className="text-3xl font-bold text-slate-900 mb-1">{campaign.sent}</div>
+            <div className="text-sm text-slate-600 font-medium">Emails Sent</div>
+            <div className="text-xs text-slate-500 mt-1">to {campaign.prospects.length} prospects</div>
           </div>
-          <div className="text-center p-3 bg-blue-50 rounded-xl">
-            <div className="text-2xl font-bold text-blue-600">{getOpenRate()}%</div>
-            <div className="text-xs text-blue-600 font-medium">Open Rate</div>
-          </div>
-          <div className="text-center p-3 bg-emerald-50 rounded-xl">
-            <div className="text-2xl font-bold text-emerald-600">{campaign.replyRate}%</div>
-            <div className="text-xs text-emerald-600 font-medium">Reply Rate</div>
+          <div className="text-center p-4 bg-gradient-to-br from-emerald-50 to-green-50 rounded-xl border border-emerald-200">
+            <div className="text-3xl font-bold text-emerald-600 mb-1">{campaign.replyRate}%</div>
+            <div className="text-sm text-emerald-600 font-medium">Reply Rate</div>
+            <div className="text-xs text-slate-500 mt-1">{getOpenRate()}% open rate</div>
           </div>
         </div>
 

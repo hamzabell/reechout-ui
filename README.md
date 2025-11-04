@@ -9,7 +9,7 @@ This is the React migration of the original Reechout application. The applicatio
 - **React Router**: Client-side routing with protected routes
 - **Authentication**: Mock authentication system with session management
 - **Responsive Design**: Mobile-first responsive layout
-- **Dashboard**: Multiple dashboard sections (Overview, Campaigns, Leads, Templates, Analytics, Settings)
+- **Dashboard**: Multiple dashboard sections (Overview, Sequences, Leads, Templates, Analytics, Settings)
 - **Netlify Functions**: Backendless API functions for data operations
 - **🤖 AI-Powered Features**: 
   - **Lemonfox AI Integration**: Company research and lead intelligence
@@ -22,9 +22,9 @@ This is the React migration of the original Reechout application. The applicatio
   - Bulk operations (status updates, deletion)
   - Advanced search and filtering
   - Lead scoring and insights
-- **📧 Email Campaign Management**:
+- **📧 Email Sequence Management**:
   - Template creation and management
-  - Campaign scheduling and tracking
+  - Sequence scheduling and tracking
   - Performance analytics
   - A/B testing capabilities
 
@@ -52,7 +52,7 @@ reechout-react/
 │   │   ├── LandingPage.tsx
 │   │   ├── LoginPage.tsx
 │   │   ├── OverviewPage.tsx
-│   │   ├── CampaignsPage.tsx
+│   │   ├── SequencesPage.tsx
 │   │   ├── LeadsPage.tsx
 │   │   ├── TemplatesPage.tsx
 │   │   ├── AnalyticsPage.tsx
@@ -120,7 +120,7 @@ The application uses React Router with the following route structure:
 - `/login` - Login/Signup page (public)
 - `/dashboard` - Protected dashboard layout
   - `/dashboard/overview` - Dashboard overview (default)
-  - `/dashboard/campaigns` - Campaign management
+  - `/dashboard/campaigns` - Sequence management
   - `/dashboard/leads` - Lead management
   - `/dashboard/templates` - Email templates
   - `/dashboard/analytics` - Performance analytics

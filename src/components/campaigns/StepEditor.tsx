@@ -200,15 +200,6 @@ const StepEditor: React.FC<StepEditorProps> = ({
                 </div>
               </div>
               <div className="flex items-center gap-2">
-                {onDelete && (
-                  <button
-                    onClick={onDelete}
-                    className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                    title="Delete step"
-                  >
-                    <FiTrash2 className="w-5 h-5" />
-                  </button>
-                )}
                 <button
                   onClick={onClose}
                   className="p-2 text-gray-500 hover:bg-gray-100 rounded-lg transition-colors"

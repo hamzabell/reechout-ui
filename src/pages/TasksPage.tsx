@@ -53,11 +53,11 @@ const mockTasks: Task[] = [
   },
   {
     id: '3',
-    title: 'Schedule Re-engagement Campaign',
+    title: 'Schedule Re-engagement Sequence',
     description: 'Set delivery dates and times',
     status: 'PENDING',
     dueDate: '2024-01-16T00:00:00Z',
-    campaignName: 'Re-engagement Campaign',
+    campaignName: 'Re-engagement Sequence',
     stepNumber: 4,
     stepName: 'Scheduling',
     isOverdue: true,
@@ -89,7 +89,7 @@ const mockTasks: Task[] = [
   },
   {
     id: '6',
-    title: 'Update prospect list for Q1 campaigns',
+    title: 'Update prospect list for Q1 sequences',
     description: 'Add new leads and remove inactive ones',
     status: 'PENDING',
     dueDate: '2024-01-25T00:00:00Z',
@@ -288,7 +288,7 @@ const TasksPage: React.FC = () => {
                       </span>
                     </div>
                     <div>
-                      Campaign: <span className="font-medium text-gray-700">{task.campaignName}</span>
+                      Sequence: <span className="font-medium text-gray-700">{task.campaignName}</span>
                     </div>
                     <div>
                       Step {task.stepNumber}

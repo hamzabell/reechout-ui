@@ -8,6 +8,8 @@ import Button from '../components/Button';
 import { generateBlankSequenceId } from '../services/campaignUtils';
 import CampaignCard from '../components/sequences/CampaignCard';
 import SequencesStatsBar from '../components/sequences/SequencesStatsBar';
+import { useAlert } from '../hooks/useAlert';
+import { useConfirm } from '../hooks/useConfirm';
 
 type ViewMode = 'overview' | 'create' | 'approval' | 'schedule' | 'details';
 
@@ -71,7 +73,7 @@ const mockCampaigns: Campaign[] = [
   },
   {
     id: '3',
-    name: 'Re-engagement Campaign',
+    name: 'Re-engagement Sequence',
     description: 'Bring back inactive users',
     status: 'completed',
     sent: 512,
@@ -156,6 +158,10 @@ const SequencesPage: React.FC = () => {
   const [viewMode, setViewMode] = useState<ViewMode>('overview');
   const [selectedSequenceId, setSelectedSequenceId] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState<string>('');
+  
+  // Hooks for modals
+  const { showSuccess, showWarning } = useAlert();
+  const { confirmWarning } = useConfirm();
 
   // Use mock data instead of API calls
   const sequences = mockCampaigns;
@@ -187,30 +193,33 @@ const SequencesPage: React.FC = () => {
   }, []);
 
   const handleDeleteSequence = useCallback((sequenceId: string) => {
-    if (window.confirm('Are you sure you want to delete this sequence? This is a demo version - no actual data will be deleted.')) {
-      // Frontend-only - just show an alert
-      alert('Sequence deleted successfully (demo mode)');
-      if (selectedSequenceId === sequenceId) {
-        setSelectedSequenceId(null);
-        setViewMode('overview');
+    confirmWarning({
+      title: 'Delete Sequence',
+      message: 'Are you sure you want to delete this sequence? This is a demo version - no actual data will be deleted.',
+      onConfirm: () => {
+        showSuccess('Sequence deleted successfully (demo mode)');
+        if (selectedSequenceId === sequenceId) {
+          setSelectedSequenceId(null);
+          setViewMode('overview');
+        }
       }
-    }
+    });
   }, [selectedSequenceId]);
 
   const handleDuplicateSequence = useCallback((sequence: Campaign) => {
     const newName = window.prompt('Enter a name for the duplicated sequence:', `${sequence.name} (Copy)`);
     if (newName) {
-      // Frontend-only - just show an alert
-      alert('Sequence duplicated successfully (demo mode)');
+      // Frontend-only - just show a success message
+      showSuccess('Sequence duplicated successfully (demo mode)');
     }
   }, []);
 
   const handlePauseResumeSequence = useCallback((sequence: Campaign) => {
-    // Frontend-only - just show an alert
+    // Frontend-only - just show an info message
     if (sequence.status === 'paused') {
-      alert('Sequence resumed (demo mode)');
+      showSuccess('Sequence resumed (demo mode)');
     } else {
-      alert('Sequence paused (demo mode)');
+      showSuccess('Sequence paused (demo mode)');
     }
   }, []);
 

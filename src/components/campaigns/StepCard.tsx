@@ -6,10 +6,11 @@ import {
   FiCheckSquare,
   FiEdit3,
   FiClock,
-  FiMenu,
   FiSettings,
   FiZap,
   FiTrash2,
+  FiChevronUp,
+  FiChevronDown,
 } from 'react-icons/fi';
 
 interface CampaignStep {
@@ -48,10 +49,14 @@ interface StepCardProps {
   onEdit: () => void;
   onDelete?: () => void;
   onPersonalize?: () => void;
+  onMoveUp?: () => void;
+  onMoveDown?: () => void;
   isReorderable?: boolean;
   showActions?: boolean;
   className?: string;
   campaignId?: string;
+  isFirst?: boolean;
+  isLast?: boolean;
 }
 
 const StepCard: React.FC<StepCardProps> = ({
@@ -59,10 +64,14 @@ const StepCard: React.FC<StepCardProps> = ({
   onEdit,
   onDelete,
   onPersonalize,
+  onMoveUp,
+  onMoveDown,
   isReorderable = false,
   showActions = true,
   className = '',
   campaignId,
+  isFirst = false,
+  isLast = false,
 }) => {
   const navigate = useNavigate();
   const getDayText = () => {
@@ -110,6 +119,27 @@ const StepCard: React.FC<StepCardProps> = ({
               {/* Actions */}
               {showActions && (
                 <div className="flex items-center gap-1 ml-4">
+                  {/* Reorder controls */}
+                  {isReorderable && (
+                    <div className="flex flex-col gap-0.5">
+                      <button
+                        onClick={onMoveUp}
+                        disabled={isFirst}
+                        className="btn-icon text-slate-500 hover:text-blue-600 hover:bg-blue-50 disabled:opacity-30 disabled:cursor-not-allowed"
+                        title="Move step up"
+                      >
+                        <FiChevronUp className="w-3 h-3" />
+                      </button>
+                      <button
+                        onClick={onMoveDown}
+                        disabled={isLast}
+                        className="btn-icon text-slate-500 hover:text-blue-600 hover:bg-blue-50 disabled:opacity-30 disabled:cursor-not-allowed"
+                        title="Move step down"
+                      >
+                        <FiChevronDown className="w-3 h-3" />
+                      </button>
+                    </div>
+                  )}
                   <button
                     onClick={onEdit}
                     className="btn-icon text-slate-600 hover:text-blue-600 hover:bg-blue-50"
@@ -183,14 +213,7 @@ const StepCard: React.FC<StepCardProps> = ({
             )}
           </div>
 
-          {/* Drag Handle (for reordering) */}
-          {isReorderable && (
-            <div className="flex-shrink-0 ml-2">
-              <div className="p-2 text-slate-400 cursor-grab active:cursor-grabbing hover:text-slate-600 btn-icon">
-                <FiMenu className="w-5 h-5" />
-              </div>
-            </div>
-          )}
+  
         </div>
       </div>
     </motion.div>

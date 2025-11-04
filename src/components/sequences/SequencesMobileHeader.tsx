@@ -20,7 +20,7 @@ const SequencesMobileHeader: React.FC<SequencesMobileHeaderProps> = ({
   const [showMobileMenu, setShowMobileMenu] = useState(false);
 
   const folders = [
-    { id: 'all', name: 'All Campaigns', count: campaignsCount },
+    { id: 'all', name: 'All Sequences', count: campaignsCount },
     { id: 'active', name: 'Active', count: null },
     { id: 'draft', name: 'Drafts', count: null },
     { id: 'scheduled', name: 'Scheduled', count: null },
@@ -54,7 +54,7 @@ const SequencesMobileHeader: React.FC<SequencesMobileHeaderProps> = ({
         <div className="relative">
           <input
             type="text"
-            placeholder="Search campaigns..."
+            placeholder="Search sequences..."
             value={searchTerm}
             onChange={(e) => onSearchChange(e.target.value)}
             className="w-full pl-12 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"

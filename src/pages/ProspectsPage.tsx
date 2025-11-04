@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useProspects } from '../hooks/useProspects';
 import { useCampaigns } from '../hooks/useCampaigns';
 import { useToast } from '../hooks/useToast';
+import { useConfirm } from '../hooks/useConfirm';
 import { Prospect } from '../types';
 import Button from '../components/Button';
 import ModalWrapper from '../components/ModalWrapper';
@@ -30,6 +31,7 @@ const ProspectsPage: React.FC = () => {
   } = useProspects();
 
   const { showToast } = useToast();
+  const { confirmDanger } = useConfirm();
   const { campaigns } = useCampaigns({ status: 'draft' });
 
   const [showEditProspectModal, setShowEditProspectModal] = useState(false);
@@ -79,14 +81,20 @@ const ProspectsPage: React.FC = () => {
   };
 
   const handleDeleteProspect = async (prospectId: string, leadName: string) => {
-    if (window.confirm(`Are you sure you want to delete "${leadName}"?`)) {
-      try {
-        await deleteProspect(prospectId);
-        showToast(`Prospect deleted successfully!`, 'success');
-      } catch (error) {
-        showToast(error instanceof Error ? error.message : 'Failed to delete lead', 'error');
+    confirmDanger({
+      title: 'Delete Prospect',
+      message: `Are you sure you want to delete "${leadName}"? This action cannot be undone.`,
+      confirmText: 'Delete',
+      cancelText: 'Cancel',
+      onConfirm: async () => {
+        try {
+          await deleteProspect(prospectId);
+          showToast(`Prospect deleted successfully!`, 'success');
+        } catch (error) {
+          showToast(error instanceof Error ? error.message : 'Failed to delete lead', 'error');
+        }
       }
-    }
+    });
   };
 
   const handleAddToCampaign = async () => {
@@ -500,20 +508,54 @@ const ProspectsPage: React.FC = () => {
           onClose={() => setShowCSVUpload(false)}
           maxWidth="max-w-md"
         >
-          <div className="bg-surface rounded-xl p-6 max-w-md w-full mx-4 border border-border">
-            <h3 className="text-lg font-semibold text-text-primary mb-4">Import Prospects from CSV</h3>
-            <p className="text-text-secondary mb-4">
-              Upload a CSV file with columns: Name, Email, Company, Title, Website (optional)
-            </p>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept=".csv"
-              onChange={handleCSVUpload}
-              className="w-full p-3 bg-bg-secondary border border-border rounded-lg"
-            />
-            <div className="flex gap-2 mt-4">
-              <Button variant="secondary" onClick={() => setShowCSVUpload(false)}>
+          <div className="p-6">
+            {/* Header */}
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-xl font-semibold text-text-primary">Import Prospects</h3>
+              <button
+                onClick={() => setShowCSVUpload(false)}
+                className="p-1 hover:bg-gray-100 rounded-lg transition-colors"
+              >
+                <i className="fas fa-times text-gray-500" />
+              </button>
+            </div>
+
+            {/* Upload Area */}
+            <div className="mb-4">
+              <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-blue-400 transition-colors bg-gray-50">
+                <div className="mb-3">
+                  <i className="fas fa-cloud-upload-alt text-gray-400 text-3xl mb-2" />
+                  <p className="text-sm font-medium text-text-primary mb-1">
+                    Drop CSV file here or click to browse
+                  </p>
+                </div>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".csv"
+                  onChange={handleCSVUpload}
+                  className="w-full text-sm text-gray-600 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+                />
+              </div>
+            </div>
+
+            {/* Required Columns */}
+            <div className="mb-4">
+              <p className="text-sm text-text-secondary mb-2">
+                <strong>Required columns:</strong> Name, Email, Company
+              </p>
+              <p className="text-xs text-text-secondary">
+                Optional: Title, Website, Phone, Industry, Location, LinkedIn
+              </p>
+            </div>
+
+            {/* Actions */}
+            <div className="flex gap-2">
+              <Button
+                variant="secondary"
+                onClick={() => setShowCSVUpload(false)}
+                className="flex-1"
+              >
                 Cancel
               </Button>
             </div>
@@ -531,23 +573,39 @@ const ProspectsPage: React.FC = () => {
           }}
           maxWidth="max-w-md"
         >
-          <div className="bg-surface rounded-xl p-6 max-w-md w-full mx-4 border border-border">
-            <h3 className="text-lg font-semibold text-text-primary mb-4">
-              Add {selectedProspects.length} Prospect{selectedProspects.length !== 1 ? 's' : ''} to Sequence
-            </h3>
-            <p className="text-text-secondary mb-4">
-              Select a sequence to add the selected prospects. Research will be automatically performed if the sequence has AI personalization enabled.
-            </p>
+          <div className="p-6">
+            {/* Header */}
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-xl font-semibold text-text-primary">Add to Sequence</h3>
+              <button
+                onClick={() => {
+                  setShowAddToCampaignModal(false);
+                  setSelectedCampaign('');
+                }}
+                className="p-1 hover:bg-gray-100 rounded-lg transition-colors"
+              >
+                <i className="fas fa-times text-gray-500" />
+              </button>
+            </div>
+
+            {/* Selected Prospects Info */}
+            <div className="mb-4">
+              <p className="text-sm text-text-secondary">
+                Adding {selectedProspects.length} prospect{selectedProspects.length !== 1 ? 's' : ''} to sequence
+              </p>
+            </div>
+
+            {/* Sequence Selection */}
             <div className="mb-4">
               <label className="block text-sm font-medium text-text-primary mb-2">Select Sequence</label>
               <select
                 value={selectedCampaign}
                 onChange={(e) => setSelectedCampaign(e.target.value)}
-                className="w-full px-3 py-2 bg-bg-secondary border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
+                className="w-full px-3 py-2 bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               >
                 <option value="">Choose a sequence...</option>
                 {campaigns.length === 0 ? (
-                  <option value="" disabled>No draft sequences available</option>
+                  <option value="" disabled>No sequences available</option>
                 ) : (
                   campaigns.map((campaign) => (
                     <option key={campaign.id} value={campaign.id}>
@@ -557,19 +615,14 @@ const ProspectsPage: React.FC = () => {
                 )}
               </select>
               {campaigns.length === 0 && (
-                <p className="text-sm text-text-secondary mt-2">
-                  Create a sequence first to add prospects to it.
+                <p className="text-xs text-amber-600 mt-1">
+                  Create a sequence first to add prospects.
                 </p>
               )}
             </div>
+
+            {/* Actions */}
             <div className="flex gap-2">
-              <Button
-                onClick={handleAddToCampaign}
-                disabled={!selectedCampaign || selectedProspects.length === 0}
-                className="flex-1"
-              >
-                Add to Sequence
-              </Button>
               <Button
                 variant="secondary"
                 onClick={() => {
@@ -579,6 +632,13 @@ const ProspectsPage: React.FC = () => {
                 className="flex-1"
               >
                 Cancel
+              </Button>
+              <Button
+                onClick={handleAddToCampaign}
+                disabled={!selectedCampaign || selectedProspects.length === 0}
+                className="flex-1"
+              >
+                Add to Sequence
               </Button>
             </div>
           </div>

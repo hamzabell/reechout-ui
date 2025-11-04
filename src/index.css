@@ -93,8 +93,16 @@
   @apply inline-flex px-3 py-1 rounded-full text-sm font-medium;
 }
 
+.status-badge.draft {
+  @apply bg-gray-100 text-gray-700 border border-gray-200;
+}
+
 .status-badge.active {
   @apply bg-emerald-100 text-emerald-700 border border-emerald-200;
+}
+
+.status-badge.pending {
+  @apply bg-blue-100 text-blue-700 border border-blue-200;
 }
 
 .status-badge.completed {
@@ -103,6 +111,10 @@
 
 .status-badge.paused {
   @apply bg-amber-100 text-amber-700 border border-amber-200;
+}
+
+.status-badge.cancelled {
+  @apply bg-red-100 text-red-700 border border-red-200;
 }
 
 .metric-card {
@@ -139,16 +151,24 @@ html {
   @apply inline-flex px-4 py-2 rounded-full text-sm font-semibold;
 }
 
+.status.draft {
+  @apply bg-gray-100 text-gray-700 border border-gray-200;
+}
+
 .status.active {
-  @apply bg-success/15 text-success border border-success/20;
+  @apply bg-green-100 text-green-700 border border-green-200;
 }
 
 .status.completed {
-  @apply bg-text-muted/15 text-text-muted border border-text-muted/20;
+  @apply bg-blue-100 text-blue-700 border border-blue-200;
 }
 
 .status.paused {
-  @apply bg-warning/15 text-warning border border-warning/20;
+  @apply bg-yellow-100 text-yellow-700 border border-yellow-200;
+}
+
+.status.cancelled {
+  @apply bg-red-100 text-red-700 border border-red-200;
 }
 
 .stat-change {
@@ -156,11 +176,11 @@ html {
 }
 
 .stat-change.positive {
-  @apply text-success;
+  @apply text-emerald-600;
 }
 
 .stat-change.negative {
-  @apply text-error;
+  @apply text-red-600;
 }
 
 .lead-avatar {
@@ -380,19 +400,84 @@ html {
   50% { opacity: 0.7; }
 }
 
+/* Sequence editor specific styles */
+.sequence-editor {
+  @apply min-h-screen bg-gradient-to-br from-slate-50 to-blue-50;
+}
+
+.sequence-tab {
+  @apply flex items-center justify-center gap-2 px-4 py-4 text-sm font-medium transition-colors border-b-2 border-transparent;
+}
+
+.sequence-tab.active {
+  @apply text-blue-600 border-blue-600 bg-blue-50;
+}
+
+.sequence-tab:hover:not(.active) {
+  @apply text-slate-900 bg-slate-50;
+}
+
+.sequence-tab-content {
+  @apply p-6 bg-white rounded-2xl border border-slate-200 shadow-sm;
+}
+
+.prospect-card {
+  @apply bg-white border border-slate-200 rounded-xl p-4 hover:border-slate-300 transition-colors;
+}
+
+.prospect-email-badge {
+  @apply px-2 py-1 bg-slate-100 text-slate-700 rounded-lg text-xs;
+}
+
+.step-empty-state {
+  @apply border-2 border-dashed border-slate-300 rounded-2xl p-12 text-center;
+}
+
+.settings-section {
+  @apply space-y-6;
+}
+
+.settings-grid {
+  @apply grid grid-cols-1 md:grid-cols-2 gap-6;
+}
+
+.analytics-card {
+  @apply bg-white rounded-2xl p-6 border border-slate-200 shadow-sm;
+}
+
+.timeline-item {
+  @apply flex items-center gap-3;
+}
+
+.timeline-dot {
+  @apply w-3 h-3 rounded-full;
+}
+
+.timeline-content {
+  @apply flex-1;
+}
+
+.progress-bar {
+  @apply w-full bg-slate-200 rounded-full h-2;
+}
+
+.progress-fill {
+  @apply h-2 rounded-full transition-all duration-500;
+}
+
 /* Custom scrollbar */
 ::-webkit-scrollbar {
   @apply w-2;
 }
 
 ::-webkit-scrollbar-track {
-  @apply bg-bg-secondary;
+  @apply bg-slate-100;
 }
 
 ::-webkit-scrollbar-thumb {
-  @apply bg-border rounded-full;
+  @apply bg-slate-300 rounded-full;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  @apply bg-text-muted;
+  @apply bg-slate-400;
 }

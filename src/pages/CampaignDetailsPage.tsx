@@ -23,9 +23,11 @@ import {
   FiZap,
 } from 'react-icons/fi';
 import StepEditor from '../components/campaigns/StepEditor';
-import StepReorder from '../components/campaigns/StepReorder';
+
 import StepCard from '../components/campaigns/StepCard';
 import ModalWrapper from '../components/ModalWrapper';
+import { useConfirm } from '../hooks/useConfirm';
+import { useAlert } from '../hooks/useAlert';
 
 interface CampaignStep {
   id: string;
@@ -116,7 +118,7 @@ const SequenceDetailsPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'overview' | 'steps' | 'prospects' | 'settings'>('overview');
   const [editingStep, setEditingStep] = useState<CampaignStep | null>(null);
   const [isStepEditorOpen, setIsStepEditorOpen] = useState(false);
-  const [isStepReorderOpen, setIsStepReorderOpen] = useState(false);
+  
   const [showProspectSelectionModal, setShowProspectSelectionModal] = useState(false);
   const [selectedProspectsToAdd, setSelectedProspectsToAdd] = useState<string[]>([]);
   
@@ -387,6 +389,10 @@ const SequenceDetailsPage: React.FC = () => {
 
   const [isLoading] = useState(false);
   const [error] = useState(null);
+  
+  // Hooks for modals
+  const { confirmWarning, confirmDanger } = useConfirm();
+  const { showSuccess, showError, showWarning, showInfo } = useAlert();
 
   const handleCampaignAction = (action: 'start' | 'pause' | 'restart' | 'stop' | 'schedule' | 'end') => {
     console.log(`Sequence action: ${action}`, { sequenceId: id, scheduleMode, scheduledDate });
@@ -394,37 +400,37 @@ const SequenceDetailsPage: React.FC = () => {
     if (action === 'start') {
       // Update campaign status to ACTIVE
       setCampaign(prev => ({ ...prev, status: 'ACTIVE' }));
-      alert(`Campaign "${campaign.name}" started successfully! 🚀`);
+      showSuccess(`Campaign "${campaign.name}" started successfully! 🚀`);
     } else if (action === 'pause') {
       // Update campaign status to PAUSED
       setCampaign(prev => ({ ...prev, status: 'PAUSED' }));
-      alert(`Campaign "${campaign.name}" paused successfully! ⏸️`);
+      showSuccess(`Campaign "${campaign.name}" paused successfully! ⏸️`);
     } else if (action === 'restart') {
       // Update campaign status to ACTIVE
       setCampaign(prev => ({ ...prev, status: 'ACTIVE' }));
-      alert(`Campaign "${campaign.name}" resumed successfully! ▶️`);
+      showSuccess(`Campaign "${campaign.name}" resumed successfully! ▶️`);
     } else if (action === 'end') {
       // Update campaign status to COMPLETED
       setCampaign(prev => ({ ...prev, status: 'COMPLETED' }));
-      alert(`Campaign "${campaign.name}" ended successfully! 🔴`);
+      showSuccess(`Campaign "${campaign.name}" ended successfully! 🔴`);
     } else if (action === 'schedule') {
       if (scheduleMode === 'scheduled' && !scheduledDate) {
-        alert('Please select a date to schedule the campaign.');
+        showWarning('Please select a date to schedule the campaign.');
         return;
       }
       const scheduleText = scheduleMode === 'now' 
         ? 'immediately' 
         : `on ${new Date(scheduledDate).toLocaleDateString()}`;
-      alert(`Sequence "${campaign.name}" scheduled to start ${scheduleText} (frontend demo)`);
+      showInfo(`Sequence "${campaign.name}" scheduled to start ${scheduleText} (frontend demo)`);
     } else {
-      alert(`Sequence "${campaign.name}" ${action} action triggered (frontend demo)`);
+      showInfo(`Sequence "${campaign.name}" ${action} action triggered (frontend demo)`);
     }
   };
 
   const handleRemoveProspect = (campaignProspectId: string) => {
     console.log('Removing prospect:', campaignProspectId);
     // Frontend-only: just log the action
-    alert('Prospect removed (frontend demo)');
+    showInfo('Prospect removed (frontend demo)');
   };
 
   // Step management functions (frontend-only for now)
@@ -436,7 +442,7 @@ const SequenceDetailsPage: React.FC = () => {
   const handleSaveStep = (updatedStep: CampaignStep) => {
     console.log('Saving step:', updatedStep);
     // Frontend-only: just log the changes
-    alert(`Step "${updatedStep.name || updatedStep.stepNumber}" saved (frontend demo)`);
+    showSuccess(`Step "${updatedStep.name || updatedStep.stepNumber}" saved (frontend demo)`);
     setEditingStep(null);
     setIsStepEditorOpen(false);
   };
@@ -444,11 +450,15 @@ const SequenceDetailsPage: React.FC = () => {
   const handleDeleteStep = (stepId: string) => {
     if (!campaign) return;
 
-    if (window.confirm('Are you sure you want to delete this step?')) {
-      console.log('Deleting step:', stepId);
-      // Frontend-only: just log the action
-      alert('Step deleted (frontend demo)');
-    }
+    confirmDanger({
+      title: 'Delete Step',
+      message: 'Are you sure you want to delete this step? This action cannot be undone.',
+      onConfirm: () => {
+        console.log('Deleting step:', stepId);
+        // Frontend-only: just log the action
+        showSuccess('Step deleted (frontend demo)');
+      }
+    });
   };
 
   const handleAddStep = () => {
@@ -465,16 +475,47 @@ const SequenceDetailsPage: React.FC = () => {
     setIsStepEditorOpen(true);
   };
 
-  const handleReorderSteps = () => {
-    setIsStepReorderOpen(true);
+  const handleMoveStepUp = (stepId: string) => {
+    if (!campaign) return;
+    
+    const stepIndex = campaign.steps.findIndex(s => s.id === stepId);
+    if (stepIndex <= 0) return; // Can't move up if already at top
+
+    // Update step order in frontend demo
+    const newSteps = [...campaign.steps];
+    [newSteps[stepIndex - 1], newSteps[stepIndex]] = [newSteps[stepIndex], newSteps[stepIndex - 1]];
+    
+    // Update step numbers
+    const updatedSteps = newSteps.map((step, idx) => ({
+      ...step,
+      stepNumber: idx + 1,
+    }));
+
+    setCampaign(prev => ({ ...prev, steps: updatedSteps }));
+    showSuccess('Step moved up successfully!');
   };
 
-  const handleSaveReorder = (reorderedSteps: CampaignStep[]) => {
-    console.log('Saving reordered steps:', reorderedSteps);
-    // Frontend-only: just log the changes
-    alert(`Steps reordered (frontend demo)`);
-    setIsStepReorderOpen(false);
+  const handleMoveStepDown = (stepId: string) => {
+    if (!campaign) return;
+    
+    const stepIndex = campaign.steps.findIndex(s => s.id === stepId);
+    if (stepIndex >= campaign.steps.length - 1) return; // Can't move down if already at bottom
+
+    // Update step order in frontend demo
+    const newSteps = [...campaign.steps];
+    [newSteps[stepIndex], newSteps[stepIndex + 1]] = [newSteps[stepIndex + 1], newSteps[stepIndex]];
+    
+    // Update step numbers
+    const updatedSteps = newSteps.map((step, idx) => ({
+      ...step,
+      stepNumber: idx + 1,
+    }));
+
+    setCampaign(prev => ({ ...prev, steps: updatedSteps }));
+    showSuccess('Step moved down successfully!');
   };
+
+  
 
   
   const handleAddProspects = () => {
@@ -495,7 +536,7 @@ const SequenceDetailsPage: React.FC = () => {
 
   const handleAddSelectedProspects = () => {
     if (selectedProspectsToAdd.length === 0) {
-      alert('Please select at least one prospect to add.');
+      showWarning('Please select at least one prospect to add.');
       return;
     }
 
@@ -533,7 +574,7 @@ const SequenceDetailsPage: React.FC = () => {
     // Close modal and show success message
     setShowProspectSelectionModal(false);
     setSelectedProspectsToAdd([]);
-    alert(`Added ${prospectsToAdd.length} prospects to the sequence successfully!`);
+    showSuccess(`Added ${prospectsToAdd.length} prospects to the sequence successfully!`);
   };
 
   
@@ -872,15 +913,6 @@ const SequenceDetailsPage: React.FC = () => {
                     </p>
                   </div>
                   <div className="flex items-center gap-3">
-                    {campaign.steps.length > 0 && (
-                      <button
-                        onClick={handleReorderSteps}
-                        className="btn-secondary"
-                      >
-                        <FiList className="w-4 h-4" />
-                        Reorder
-                      </button>
-                    )}
                     <button
                       onClick={handleAddStep}
                       className="btn-primary"
@@ -899,7 +931,12 @@ const SequenceDetailsPage: React.FC = () => {
                           step={step}
                           onEdit={() => handleEditStep(step)}
                           onDelete={() => handleDeleteStep(step.id)}
+                          onMoveUp={() => handleMoveStepUp(step.id)}
+                          onMoveDown={() => handleMoveStepDown(step.id)}
+                          isReorderable={campaign.status === 'DRAFT'}
                           showActions={campaign.status === 'DRAFT'}
+                          isFirst={index === 0}
+                          isLast={index === campaign.steps.length - 1}
                           campaignId={campaign.id}
                         />
                       </div>
@@ -1235,11 +1272,15 @@ const SequenceDetailsPage: React.FC = () => {
             }}
             onSave={handleSaveStep}
             onDelete={() => {
-              if (editingStep && window.confirm('Are you sure you want to delete this step?')) {
-                handleDeleteStep(editingStep.id);
-                setIsStepEditorOpen(false);
-                setEditingStep(null);
-              }
+              confirmDanger({
+                title: 'Delete Step',
+                message: 'Are you sure you want to delete this step? This action cannot be undone.',
+                onConfirm: () => {
+                  handleDeleteStep(editingStep.id);
+                  setIsStepEditorOpen(false);
+                  setEditingStep(null);
+                }
+              });
             }}
             availableTemplates={mockEmailTemplates}
             isFirst={editingStep.stepNumber === 1}
@@ -1247,16 +1288,7 @@ const SequenceDetailsPage: React.FC = () => {
           />
         )}
 
-        {/* Step Reorder Modal */}
-        <StepReorder
-          steps={campaign?.steps || []}
-          isOpen={isStepReorderOpen}
-          onClose={() => setIsStepReorderOpen(false)}
-          onSaveReorder={handleSaveReorder}
-          onAddStep={handleAddStep}
-          onEditStep={handleEditStep}
-          onDeleteStep={handleDeleteStep}
-        />
+        
 
         {/* Prospect Selection Modal */}
         <ModalWrapper
@@ -1512,13 +1544,13 @@ const SequenceDetailsPage: React.FC = () => {
                 <button
                   onClick={() => {
                     if (!scheduledDate || !scheduledTime) {
-                      alert('Please select both date and time for scheduled campaigns.');
+                      showWarning('Please select both date and time for scheduled campaigns.');
                       return;
                     }
                     
                     const scheduleText = `on ${new Date(scheduledDate).toLocaleDateString()} at ${scheduledTime} ${timezone}`;
                     
-                    alert(`Campaign "${campaign.name}" scheduled to start ${scheduleText} (frontend demo)`);
+                    showSuccess(`Campaign "${campaign.name}" scheduled to start ${scheduleText} (frontend demo)`);
                     setShowScheduleModal(false);
                     setScheduledDate('');
                     setScheduledTime('');

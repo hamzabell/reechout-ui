@@ -93,8 +93,8 @@ export const useLogout = () => {
         // Clear stored tokens
         localStorage.removeItem('auth_token');
         localStorage.removeItem('user_data');
-        // Redirect to login
-        window.location.href = '/login';
+        // Redirect to home route
+        window.location.href = '/';
       },
       invalidateQueries: ['auth-session'],
     }
@@ -132,7 +132,7 @@ export const useAuthOperations = () => {
       localStorage.removeItem('auth_token');
       localStorage.removeItem('user_data');
       auth.mutate(null, false);
-      window.location.href = '/login';
+      window.location.href = '/';
     }
   };
 
