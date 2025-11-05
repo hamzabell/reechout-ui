@@ -247,10 +247,10 @@ const LandingPage: React.FC = () => {
                   </div>
                 </div>
 
-                <a href="#" className="inline-flex items-center text-blue-600 font-semibold hover:text-blue-700 transition-colors group">
+                <button className="inline-flex items-center text-blue-600 font-semibold hover:text-blue-700 transition-colors group bg-transparent border-none cursor-pointer">
                   Learn more
                   <Icon name="arrow-right" className="ml-2 transform group-hover:translate-x-1 transition-transform" size="sm" />
-                </a>
+                </button>
               </div>
             </div>
 
@@ -289,10 +289,10 @@ const LandingPage: React.FC = () => {
                   </div>
                 </div>
 
-                <a href="#" className="inline-flex items-center text-emerald-600 font-semibold hover:text-emerald-700 transition-colors group">
+                <button className="inline-flex items-center text-emerald-600 font-semibold hover:text-emerald-700 transition-colors group bg-transparent border-none cursor-pointer">
                   Learn more
                   <Icon name="arrow-right" className="ml-2 transform group-hover:translate-x-1 transition-transform" size="sm" />
-                </a>
+                </button>
               </div>
             </div>
 
@@ -331,10 +331,10 @@ const LandingPage: React.FC = () => {
                   </div>
                 </div>
 
-                <a href="#" className="inline-flex items-center text-purple-600 font-semibold hover:text-purple-700 transition-colors group">
+                <button className="inline-flex items-center text-purple-600 font-semibold hover:text-purple-700 transition-colors group bg-transparent border-none cursor-pointer">
                   Learn more
                   <Icon name="arrow-right" className="ml-2 transform group-hover:translate-x-1 transition-transform" size="sm" />
-                </a>
+                </button>
               </div>
             </div>
           </div>

@@ -104,15 +104,7 @@ const ProspectsPage: React.FC = () => {
     });
   };
 
-  const handleStatusChange = async (prospectId: string, newStatus: ProspectStatus) => {
-    try {
-      await updateProspect(prospectId, { status: newStatus });
-      showToast(`Prospect status updated to ${newStatus}`, 'success');
-    } catch (error) {
-      showToast(error instanceof Error ? error.message : 'Failed to update status', 'error');
-    }
-  };
-
+  
   const handleOpenStatusModal = (prospect: Prospect) => {
     setUpdatingStatusProspect(prospect);
     setShowUpdateStatusModal(true);

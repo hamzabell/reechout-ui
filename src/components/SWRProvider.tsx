@@ -1,7 +1,6 @@
 import React from 'react';
 import { SWRConfig } from 'swr';
 import { swrConfig } from '../lib/swr-config';
-import Toast from './Toast';
 import { useToast } from '../hooks/useToast';
 
 interface SWRProviderProps {

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { FiArrowLeft, FiSearch, FiX, FiCheck, FiEdit3, FiMail, FiClock, FiInfo, FiSettings, FiLinkedin, FiPhone, FiCheckSquare, FiToggleLeft, FiToggleRight, FiRefreshCw, FiCopy, FiHome, FiBriefcase } from 'react-icons/fi';
+import { FiArrowLeft, FiSearch, FiX, FiEdit3, FiMail, FiLinkedin, FiPhone, FiCheckSquare, FiRefreshCw, FiCopy, FiHome, FiBriefcase } from 'react-icons/fi';
 import CustomEmailBodyEditor from '../components/rich-text/CustomEmailBodyEditor';
 
 interface Prospect {

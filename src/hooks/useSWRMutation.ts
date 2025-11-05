@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import useSWR, { mutate as globalMutate } from 'swr';
+import { mutate as globalMutate } from 'swr';
 import { swrPoster, swrPutter, swrDeleter } from '../lib/swr-config';
 import { useToast } from './useToast';
 
@@ -90,7 +90,6 @@ export const useOptimisticMutation = <TData = any, TVariables = any>(
   }
 ) => {
   const [isMutating, setIsMutating] = useState(false);
-  const { showToast } = useToast();
 
   const trigger = useCallback(async (variables: TVariables): Promise<TData> => {
     setIsMutating(true);
@@ -159,7 +158,7 @@ export const useOptimisticMutation = <TData = any, TVariables = any>(
     } finally {
       setIsMutating(false);
     }
-  }, [endpoint, method, optimisticData, options, showToast]);
+  }, [endpoint, method, optimisticData, options]);
 
   return {
     trigger,

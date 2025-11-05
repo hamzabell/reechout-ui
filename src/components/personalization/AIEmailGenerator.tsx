@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-import { FiZap, FiRefreshCw, FiCopy, FiCheck, FiEdit3, FiAlertCircle } from 'react-icons/fi';
+import { FiZap, FiRefreshCw, FiCopy, FiCheck, FiAlertCircle } from 'react-icons/fi';
 
 interface AIEmailGeneratorProps {
   prospect: {

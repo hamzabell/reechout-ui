@@ -29,12 +29,3 @@
   [headers.values]
     Cache-Control = "public, max-age=31536000, immutable"
 
-# Functions configuration
-[functions]
-  directory = "netlify/functions"
-
-# API routing for Netlify Functions
-[[redirects]]
-  from = "/api/*"
-  to = "/.netlify/functions/api/:splat"
-  status = 200

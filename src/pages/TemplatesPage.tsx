@@ -10,7 +10,7 @@ import CustomEmailBodyEditor from '../components/rich-text/CustomEmailBodyEditor
 const TemplatesPage: React.FC = () => {
   const { generateTemplate, analyzeEmail, loading } = useAI();
   const { showToast } = useToast();
-  const { openModal, closeModal } = useModalWithAutoId();
+  const { openModal } = useModalWithAutoId();
 
   const [templates, setTemplates] = useState<EmailTemplate[]>([
     {

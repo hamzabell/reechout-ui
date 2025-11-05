@@ -1,7 +1,7 @@
-import useSWR, { mutate } from 'swr';
+import useSWR from 'swr';
 import { AuthState, LoginCredentials, SignupCredentials } from '../types';
 import { authService } from '../services/authService';
-import { swrConfig, staticConfig } from '../lib/swr-config';
+import { staticConfig } from '../lib/swr-config';
 import { useSWRMutation } from './useSWRMutation';
 
 // Hook for authentication state

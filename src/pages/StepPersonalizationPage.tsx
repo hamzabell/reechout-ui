@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { FiArrowLeft, FiEdit3, FiMail, FiInfo, FiSettings, FiToggleLeft, FiToggleRight, FiRefreshCw, FiCopy, FiCheck, FiX, FiChevronDown } from 'react-icons/fi';
+import { FiArrowLeft, FiEdit3, FiMail, FiRefreshCw, FiCopy, FiCheck, FiX, FiChevronDown } from 'react-icons/fi';
 import CustomEmailBodyEditor from '../components/rich-text/CustomEmailBodyEditor';
 
 interface Prospect {
@@ -29,7 +29,7 @@ interface StepContent {
 
 const StepPersonalizationPage: React.FC = () => {
   const navigate = useNavigate();
-  const { id: campaignId, stepNumber } = useParams<{ id: string; stepNumber: string }>();
+  const { stepNumber } = useParams<{ stepNumber: string }>();
 
   // Mock prospects data
   const [prospects] = useState<Prospect[]>([

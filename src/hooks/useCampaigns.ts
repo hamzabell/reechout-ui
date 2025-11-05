@@ -1,6 +1,6 @@
 import useSWR, { mutate } from 'swr';
 import { Campaign } from '../types';
-import { swrConfig, realtimeConfig, staticConfig } from '../lib/swr-config';
+import { swrConfig, realtimeConfig } from '../lib/swr-config';
 import { useSWRMutation, useOptimisticMutation } from './useSWRMutation';
 
 export interface CampaignFilters {
@@ -24,8 +24,6 @@ export interface CampaignsResponse {
 
 // Hook for fetching all campaigns
 export const useCampaigns = (filters?: CampaignFilters) => {
-  const queryKey = ['campaigns', filters] as const;
-
   const { data, error, isLoading, isValidating } = useSWR<CampaignsResponse>(
     ['/campaigns/advanced', filters],
     swrConfig

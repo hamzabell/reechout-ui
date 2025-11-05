@@ -160,7 +160,7 @@ const SequencesPage: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState<string>('');
   
   // Hooks for modals
-  const { showSuccess, showWarning } = useAlert();
+  const { showSuccess } = useAlert();
   const { confirmWarning } = useConfirm();
 
   // Use mock data instead of API calls
@@ -204,7 +204,7 @@ const SequencesPage: React.FC = () => {
         }
       }
     });
-  }, [selectedSequenceId]);
+  }, [selectedSequenceId, confirmWarning, showSuccess]);
 
   const handleDuplicateSequence = useCallback((sequence: Campaign) => {
     const newName = window.prompt('Enter a name for the duplicated sequence:', `${sequence.name} (Copy)`);
@@ -212,7 +212,7 @@ const SequencesPage: React.FC = () => {
       // Frontend-only - just show a success message
       showSuccess('Sequence duplicated successfully (demo mode)');
     }
-  }, []);
+  }, [showSuccess]);
 
   const handlePauseResumeSequence = useCallback((sequence: Campaign) => {
     // Frontend-only - just show an info message
@@ -221,7 +221,7 @@ const SequencesPage: React.FC = () => {
     } else {
       showSuccess('Sequence paused (demo mode)');
     }
-  }, []);
+  }, [showSuccess]);
 
 
   const getSequenceStats = () => {

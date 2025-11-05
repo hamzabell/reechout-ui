@@ -224,7 +224,7 @@ export const useProspects = () => {
   // Load initial data on component mount
   useEffect(() => {
     fetchProspects();
-  }, []);
+  }, [fetchProspects]);
 
   const searchProspects = useCallback((query: string) => {
     setState(prev => ({ ...prev, searchQuery: query }));

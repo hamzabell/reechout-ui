@@ -22,7 +22,7 @@ export const useAlert = () => {
       } = options;
 
       return new Promise<void>((resolve) => {
-        const id = openModal(AlertModal, {
+        openModal(AlertModal, {
           title,
           message,
           variant,

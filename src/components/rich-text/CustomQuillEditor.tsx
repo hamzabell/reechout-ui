@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef } from 'react';
 import Quill from 'quill';
 import 'quill/dist/quill.snow.css';
 
@@ -41,7 +41,7 @@ const CustomQuillEditor: React.FC<CustomQuillEditorProps> = ({
         onChange?.(content);
       });
     }
-  }, []);
+  }, [onChange, placeholder, value]);
 
   useEffect(() => {
     if (quillInstance.current && value !== quillInstance.current.root.innerHTML) {

@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { motion, AnimatePresence } from 'framer-motion';
-import { FiArrowLeft, FiSearch, FiX, FiCheck, FiEdit3, FiMail, FiClock, FiInfo, FiSettings, FiLinkedin, FiPhone, FiCheckSquare, FiToggleLeft, FiToggleRight, FiRefreshCw, FiCopy, FiHome, FiBriefcase, FiUser } from 'react-icons/fi';
+import { motion } from 'framer-motion';
+import { FiArrowLeft, FiSearch, FiX, FiCheck, FiEdit3, FiMail, FiToggleLeft, FiToggleRight, FiRefreshCw } from 'react-icons/fi';
 
 interface Prospect {
   id: number;
@@ -389,14 +389,7 @@ const StepProspectsPage: React.FC = () => {
     setEditingProspect(null);
   };
 
-  const copyContent = async (content: string) => {
-    try {
-      await navigator.clipboard.writeText(content);
-    } catch (error) {
-      console.error('Failed to copy:', error);
-    }
-  };
-
+  
   return (
     <div className="min-h-screen bg-gray-50 p-4">
       <motion.div

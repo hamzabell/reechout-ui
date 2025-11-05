@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { FiArrowLeft, FiSearch, FiX, FiCheck, FiEdit3, FiMail, FiClock, FiInfo, FiSettings, FiLinkedin, FiPhone, FiCheckSquare, FiZap, FiUser, FiHome, FiBriefcase } from 'react-icons/fi';
+import { FiArrowLeft, FiSearch, FiX, FiCheck, FiMail, FiClock, FiSettings, FiZap } from 'react-icons/fi';
 
 interface Prospect {
   id: number;
@@ -17,7 +17,6 @@ interface Prospect {
 
 const CampaignEmailPersonalizationPage: React.FC = () => {
   const navigate = useNavigate();
-  const location = useLocation();
   
   // State for search and filters
   const [searchTerm, setSearchTerm] = useState('');

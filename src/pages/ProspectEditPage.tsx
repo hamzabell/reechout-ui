@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import Button from '../components/Button';
-import { Prospect, ProspectStatus } from '../types';
+import { Prospect } from '../types';
 
 // Mock data - same as ProspectsPage
 const mockProspects: Prospect[] = [

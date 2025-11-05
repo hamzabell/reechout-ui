@@ -77,10 +77,6 @@ const PricingCard: React.FC<PricingCardProps> = ({
 const PricingSection: React.FC = () => {
   const [isAnnual, setIsAnnual] = useState(false);
 
-  const monthlyPrice = 18;
-  const annualPrice = 15 * 12; // $15 per month when billed annually
-  const monthlyAnnualPrice = Math.round(annualPrice / 12);
-
   return (
     <section id="pricing" className="py-28 px-8 bg-gradient-to-br from-slate-50 to-blue-50">
       <div className="max-w-7xl mx-auto">

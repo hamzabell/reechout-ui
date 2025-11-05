@@ -5,7 +5,6 @@ import {
   FiX,
   FiMail,
   FiCheckSquare,
-  FiClock,
   FiEdit3,
   FiTrash2,
   FiPlus,

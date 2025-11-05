@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
@@ -124,7 +124,7 @@ const SequenceDetailsPage: React.FC = () => {
   
   // State for schedule modal
   const [showScheduleModal, setShowScheduleModal] = useState(false);
-  const [scheduleMode, setScheduleMode] = useState<'now' | 'scheduled'>('now');
+  const [scheduleMode] = useState<'now' | 'scheduled'>('now');
   const [scheduledDate, setScheduledDate] = useState<string>('');
   const [scheduledTime, setScheduledTime] = useState<string>('');
   const [timezone, setTimezone] = useState<string>('UTC');
@@ -391,8 +391,8 @@ const SequenceDetailsPage: React.FC = () => {
   const [error] = useState(null);
   
   // Hooks for modals
-  const { confirmWarning, confirmDanger } = useConfirm();
-  const { showSuccess, showError, showWarning, showInfo } = useAlert();
+  const { confirmDanger } = useConfirm();
+  const { showSuccess, showWarning, showInfo } = useAlert();
 
   const handleCampaignAction = (action: 'start' | 'pause' | 'restart' | 'stop' | 'schedule' | 'end') => {
     console.log(`Sequence action: ${action}`, { sequenceId: id, scheduleMode, scheduledDate });
