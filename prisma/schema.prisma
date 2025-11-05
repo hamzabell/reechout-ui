@@ -10,182 +10,177 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// User Management
+// User Management - Integrated with Supabase Auth
 model User {
-  id                String    @id @default(cuid())
-  email             String    @unique
-  name              String
-  company           String?
-  title             String?
-  password          String?   // For authentication
-  isActive          Boolean   @default(true)
-  lastLoginAt       DateTime?
-  createdAt         DateTime  @default(now())
-  updatedAt         DateTime  @updatedAt
+  id             String    @id @default(cuid())
+  supabaseUserId String    @unique // Supabase auth user ID - primary identifier
+  email          String    @unique
+  name           String?
+  company        String?
+  title          String?
+  isActive       Boolean   @default(true)
+  lastLoginAt    DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
 
   // Relations
-  emailTemplates    EmailTemplate[]
-  prospects         Prospect[]
-  campaigns         Sequence[]
-  tasks             TaskAssignment[]
-  sessions          Session[]
+  emailTemplates EmailTemplate[]
+  prospects      Prospect[]
+  campaigns      Sequence[]
+  tasks          TaskAssignment[]
+  sessions       Session[]
 
   @@map("users")
 }
 
 model Session {
-  id           String   @id @default(cuid())
-  userId       String
-  token        String   @unique
-  expiresAt    DateTime
-  isActive     Boolean  @default(true)
-  createdAt    DateTime @default(now())
+  id        String   @id @default(cuid())
+  userId    String
+  token     String   @unique
+  expiresAt DateTime
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
 
   // Relations
-  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("sessions")
 }
 
 // Email Template Management
 model EmailTemplate {
-  id              String          @id @default(cuid())
-  name            String
-  subject         String
-  body            String
-  variables       String[]        // Available variables for personalization (e.g., {{prospectName}}, {{company}})
-  category        String?         // Template category
-  isDefault       Boolean         @default(false)
-  isActive        Boolean         @default(true)
-  useCount        Int             @default(0)
-  createdBy       String          // User ID
-  createdAt       DateTime        @default(now())
-  updatedAt       DateTime        @updatedAt
+  id        String   @id @default(cuid())
+  name      String
+  subject   String
+  body      String
+  variables String[] // Available variables for personalization (e.g., {{prospectName}}, {{company}})
+  createdBy String // User ID
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   // Relations
-  creator         User            @relation(fields: [createdBy], references: [id], onDelete: Cascade)
+  creator          User              @relation(fields: [createdBy], references: [id], onDelete: Cascade)
   stepEmailActions StepEmailAction[]
 
   @@map("email_templates")
 }
 
-// Prospect Management
+// Prospect Management - WITH STATUS FIELD
 model Prospect {
-  id                  String     @id @default(cuid())
-  name                String
-  email               String     @unique
-  company             String?
-  title               String?
-  website             String?
-  industry            String?
-  linkedinProfile     String?
-  phoneNumber         String?
-  location            String?
-  notes               String?    // Manual notes about the prospect
-  researchData        Json?      // Research data from AI (company info, social profiles, news, interests)
-  source              String?    // Where the prospect came from (manual, csv import, etc.)
-  isOptedOut          Boolean    @default(false)
-  tags                String[]   // Array of tags for categorization
-  createdBy           String     // User ID
-  createdAt           DateTime   @default(now())
-  updatedAt           DateTime   @updatedAt
+  id              String         @id @default(cuid())
+  name            String
+  email           String         @unique
+  company         String?
+  title           String?
+  website         String?
+  industry        String?
+  linkedinProfile String?
+  phoneNumber     String?
+  location        String?
+  notes           String? // Manual notes about the prospect
+  researchData    Json? // Research data from AI (company info, social profiles, news, interests)
+  source          String? // Where the prospect came from (manual, csv import, etc.)
+  isOptedOut      Boolean        @default(false)
+  tags            String[] // Array of tags for categorization
+  status          ProspectStatus @default(NEW)
+  createdBy       String // User ID
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
 
   // Relations
-  creator             User       @relation(fields: [createdBy], references: [id], onDelete: Cascade)
-  campaignProspects   CampaignProspect[]
+  creator           User               @relation(fields: [createdBy], references: [id], onDelete: Cascade)
+  campaignProspects CampaignProspect[]
 
+  @@index([status])
   @@map("prospects")
 }
 
 // Sequence Management
 model Sequence {
-  id              String           @id @default(cuid())
-  name            String
-  description     String?
-  status          SequenceStatus   @default(DRAFT)
-  createdBy       String           // User ID
-  startedAt       DateTime?        // When sequence was started
-  pausedAt        DateTime?        // When sequence was paused (if applicable)
-  completedAt     DateTime?        // When sequence was completed
-  createdAt       DateTime         @default(now())
-  updatedAt       DateTime         @updatedAt
+  id          String         @id @default(cuid())
+  name        String
+  description String?
+  status      SequenceStatus @default(DRAFT)
+  createdBy   String // User ID
+  startedAt   DateTime? // When sequence was started
+  pausedAt    DateTime? // When sequence was paused (if applicable)
+  completedAt DateTime? // When sequence was completed
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
 
   // Relations
-  creator         User             @relation(fields: [createdBy], references: [id], onDelete: Cascade)
-  steps           SequenceStep[]
+  creator           User               @relation(fields: [createdBy], references: [id], onDelete: Cascade)
+  steps             SequenceStep[]
   campaignProspects CampaignProspect[]
 
   @@map("campaigns")
 }
 
-// Sequence Steps - Individual steps in a sequence
+// Minimal SEQUENCE STEP DESIGN
 model SequenceStep {
-  id              String        @id @default(cuid())
-  sequenceId      String
-  stepNumber      Int           // Order in sequence (1, 2, 3, etc.)
-  delayDays       Int           @default(1) // Number of days to wait after previous step
-  name            String?       // Optional name for the step
-  description     String?       // Optional description
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
+  id         String   @id @default(cuid())
+  sequenceId String
+  day        Int // Day number relative to sequence start (Day 1, Day 5, Day 10, etc.)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 
   // Relations
-  sequence        Sequence      @relation(fields: [sequenceId], references: [id], onDelete: Cascade)
-  emailAction     StepEmailAction?
-  taskAction      StepTaskAction?
+  sequence    Sequence         @relation(fields: [sequenceId], references: [id], onDelete: Cascade)
+  emailAction StepEmailAction?
+  taskAction  StepTaskAction?
 
-  @@unique([sequenceId, stepNumber]) // Ensure step numbers are unique per sequence
+  @@unique([sequenceId, day]) // ENSURE UNIQUE DAYS PER SEQUENCE
   @@map("campaign_steps")
 }
 
 // Step Email Action - Email configuration for a sequence step
 model StepEmailAction {
-  id                  String   @id @default(cuid())
-  stepId              String   @unique
-  templateId          String?  // Optional: use predefined template
-  customSubject       String?  // Custom email subject (if not using template)
-  customBody          String?  // Custom email body (if not using template)
-  enablePersonalization Boolean @default(false) // Toggle for AI personalization
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @updatedAt
+  id                    String   @id @default(cuid())
+  stepId                String   @unique
+  templateId            String? // Optional: use predefined template
+  customSubject         String? // Custom email subject (if not using template)
+  customBody            String? // Custom email body (if not using template)
+  enablePersonalization Boolean  @default(false) // Toggle for AI personalization
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
 
   // Relations
-  step                SequenceStep @relation(fields: [stepId], references: [id], onDelete: Cascade)
-  template            EmailTemplate? @relation(fields: [templateId], references: [id])
-  personalizedEmails  PersonalizedEmail[]
+  step               SequenceStep        @relation(fields: [stepId], references: [id], onDelete: Cascade)
+  template           EmailTemplate?      @relation(fields: [templateId], references: [id])
+  personalizedEmails PersonalizedEmail[]
 
   @@map("step_email_actions")
 }
 
-// Step Task Action - Task configuration for a sequence step
+// Efficient STEP TASK ACTION - STORES TEMPLATE DATA
 model StepTaskAction {
-  id                  String   @id @default(cuid())
-  stepId              String   @unique
-  taskTitle           String   // Title of the task to create
-  taskDescription     String?  // Description of the task
-  enableEmailNotification Boolean @default(false) // Send email notification when task is created
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @updatedAt
+  id                      String   @id @default(cuid())
+  stepId                  String   @unique
+  taskTitle               String // Template: Same task title for all prospects
+  taskDescription         String? // Template: Same task description for all prospects
+  enableEmailNotification Boolean  @default(false) // Send email notification when task is created
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
 
   // Relations
-  step                SequenceStep @relation(fields: [stepId], references: [id], onDelete: Cascade)
-  tasks               Task[]
+  step  SequenceStep @relation(fields: [stepId], references: [id], onDelete: Cascade)
+  tasks Task[]
 
   @@map("step_task_actions")
 }
 
 // Sequence-Prospect Relationship with Personalized Emails
 model CampaignProspect {
-  id                  String   @id @default(cuid())
-  campaignId          String
-  prospectId          String
-  addedAt             DateTime @default(now())
-  status              ProspectStatus @default(ACTIVE)
+  id         String         @id @default(cuid())
+  campaignId String
+  prospectId String
+  addedAt    DateTime       @default(now())
+  status     ProspectStatus @default(NEW)
 
   // Relations
-  sequence            Sequence @relation(fields: [campaignId], references: [id], onDelete: Cascade)
-  prospect            Prospect @relation(fields: [prospectId], references: [id], onDelete: Cascade)
-  personalizedEmails  PersonalizedEmail[]
+  sequence           Sequence            @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  prospect           Prospect            @relation(fields: [prospectId], references: [id], onDelete: Cascade)
+  personalizedEmails PersonalizedEmail[]
 
   @@unique([campaignId, prospectId]) // Each prospect can only be in a sequence once
   @@map("campaign_prospects")
@@ -193,110 +188,114 @@ model CampaignProspect {
 
 // Personalized Emails - Generated emails for each prospect-step combination
 model PersonalizedEmail {
-  id                  String   @id @default(cuid())
-  campaignProspectId  String
-  stepEmailActionId   String
-  subject             String
-  body                String
-  status              EmailStatus @default(PENDING)
-  scheduledAt         DateTime?
-  sentAt              DateTime?
-  openedAt            DateTime?
-  repliedAt           DateTime?
-  errorMessage        String?
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @updatedAt
+  id                 String      @id @default(cuid())
+  campaignProspectId String
+  stepEmailActionId  String
+  subject            String
+  body               String
+  status             EmailStatus @default(PENDING)
+  scheduledFor       DateTime? // CALCULATED AS: sequence start + step.day - 1
+  sentAt             DateTime?
+  openedAt           DateTime?
+  repliedAt          DateTime?
+  errorMessage       String?
+  createdAt          DateTime    @default(now())
+  updatedAt          DateTime    @updatedAt
 
   // Relations
-  campaignProspect    CampaignProspect @relation(fields: [campaignProspectId], references: [id], onDelete: Cascade)
-  stepEmailAction     StepEmailAction @relation(fields: [stepEmailActionId], references: [id], onDelete: Cascade)
+  campaignProspect CampaignProspect @relation(fields: [campaignProspectId], references: [id], onDelete: Cascade)
+  stepEmailAction  StepEmailAction  @relation(fields: [stepEmailActionId], references: [id], onDelete: Cascade)
 
   @@unique([campaignProspectId, stepEmailActionId]) // Each prospect gets one personalized email per step
   @@map("personalized_emails")
 }
 
-// Task Management
+// Minimal TASK MODEL - ONLY INSTANCE DATA
 model Task {
-  id                  String   @id @default(cuid())
-  stepTaskActionId    String
-  campaignId          String   // Denormalized for easier querying
-  title               String
-  description         String?
-  dueDate             DateTime? // When this task should be completed
-  status              TaskStatus @default(PENDING)
-  completedAt         DateTime?
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @updatedAt
+  id               String     @id @default(cuid())
+  stepTaskActionId String
+  campaignId       String // Denormalized for easier querying
+  dueDate          DateTime? // CALCULATED AS: sequence start + step.day - 1
+  status           TaskStatus @default(PENDING)
+  completedAt      DateTime?
+  createdAt        DateTime   @default(now())
+  updatedAt        DateTime   @updatedAt
 
   // Relations
-  stepTaskAction      StepTaskAction @relation(fields: [stepTaskActionId], references: [id], onDelete: Cascade)
-  assignments         TaskAssignment[]
+  stepTaskAction StepTaskAction   @relation(fields: [stepTaskActionId], references: [id], onDelete: Cascade)
+  assignments    TaskAssignment[]
 
   @@map("tasks")
 }
 
 model TaskAssignment {
-  id          String   @id @default(cuid())
-  taskId      String
-  userId      String
-  assignedAt  DateTime @default(now())
+  id         String   @id @default(cuid())
+  taskId     String
+  userId     String
+  assignedAt DateTime @default(now())
 
   // Relations
-  task        Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  task Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([taskId, userId])
   @@map("task_assignments")
 }
 
-// Email Tracking (simplified)
+// Email Tracking
 model EmailLog {
-  id            String      @id @default(cuid())
+  id                  String      @id @default(cuid())
   personalizedEmailId String?
-  to            String
-  from          String
-  subject       String
-  status        EmailStatus @default(PENDING)
-  providerId    String?     // External provider message ID
-  openedAt      DateTime?
-  repliedAt     DateTime?
-  bouncedAt     DateTime?
-  bouncedReason String?
-  errorMessage  String?
-  createdAt     DateTime    @default(now())
-  updatedAt     DateTime    @updatedAt
+  to                  String
+  from                String
+  subject             String
+  status              EmailStatus @default(PENDING)
+  providerId          String? // External provider message ID
+  openedAt            DateTime?
+  repliedAt           DateTime?
+  bouncedAt           DateTime?
+  bouncedReason       String?
+  errorMessage        String?
+  createdAt           DateTime    @default(now())
+  updatedAt           DateTime    @updatedAt
 
   @@map("email_logs")
 }
 
 // Enums
 enum SequenceStatus {
-  DRAFT       // Sequence is being created
-  ACTIVE      // Sequence is running
-  PAUSED      // Sequence is temporarily stopped
-  COMPLETED   // Sequence has finished all steps
-  CANCELLED   // Sequence was cancelled
+  DRAFT // Sequence is being created
+  ACTIVE // Sequence is running
+  PAUSED // Sequence is temporarily stopped
+  COMPLETED // Sequence has finished all steps
+  CANCELLED // Sequence was cancelled
 }
 
 enum ProspectStatus {
-  ACTIVE      // Prospect is active in sequence
-  REMOVED     // Prospect was removed from sequence
-  COMPLETED   // Prospect has completed all steps
+  NEW // Newly added prospect, not yet contacted
+  CONTACTED // Initial contact has been made
+  ENGAGED // Prospect is actively engaged
+  REPLIED // Prospect has replied to outreach
+  INTERESTED // Prospect has shown clear interest
+  NOT_INTERESTED // Prospect has indicated they are not interested
+  OPTED_OUT // Prospect has opted out of communications
+  CONVERTED // Prospect has become a customer
+  BOUNCED // Email delivery failed and bounced
 }
 
 enum EmailStatus {
-  PENDING     // Email is waiting to be sent
-  SCHEDULED   // Email is scheduled for sending
-  SENT        // Email has been sent
-  DELIVERED   // Email was delivered successfully
-  OPENED      // Email was opened by recipient
-  REPLIED     // Recipient replied to email
-  BOUNCED     // Email bounced back
-  FAILED      // Email failed to send
+  PENDING // Email is waiting to be sent
+  SCHEDULED // Email is scheduled for sending
+  SENT // Email has been sent
+  DELIVERED // Email was delivered successfully
+  OPENED // Email was opened by recipient
+  REPLIED // Recipient replied to email
+  BOUNCED // Email bounced back
+  FAILED // Email failed to send
 }
 
 enum TaskStatus {
-  PENDING     // Task is pending completion
-  COMPLETED   // Task has been completed
-  CANCELLED   // Task was cancelled
+  PENDING // Task is pending completion
+  COMPLETED // Task has been completed
+  CANCELLED // Task was cancelled
 }
