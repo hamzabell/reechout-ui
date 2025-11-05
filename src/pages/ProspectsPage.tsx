@@ -4,9 +4,10 @@ import { useProspects } from '../hooks/useProspects';
 import { useCampaigns } from '../hooks/useCampaigns';
 import { useToast } from '../hooks/useToast';
 import { useConfirm } from '../hooks/useConfirm';
-import { Prospect } from '../types';
+import { Prospect, ProspectStatus } from '../types';
 import Button from '../components/Button';
 import ModalWrapper from '../components/ModalWrapper';
+import UpdateStatusModal from '../components/UpdateStatusModal';
 
 const ProspectsPage: React.FC = () => {
   const navigate = useNavigate();
@@ -37,13 +38,15 @@ const ProspectsPage: React.FC = () => {
   const [showEditProspectModal, setShowEditProspectModal] = useState(false);
   const [showCSVUpload, setShowCSVUpload] = useState(false);
   const [showAddToCampaignModal, setShowAddToCampaignModal] = useState(false);
+  const [showUpdateStatusModal, setShowUpdateStatusModal] = useState(false);
   const [editingProspect, setEditingProspect] = useState<Prospect | null>(null);
+  const [updatingStatusProspect, setUpdatingStatusProspect] = useState<Prospect | null>(null);
   const [selectedCampaign, setSelectedCampaign] = useState<string>('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
-    searchProspects();
+    searchProspects(searchQuery);
   };
 
   
@@ -67,7 +70,11 @@ const ProspectsPage: React.FC = () => {
         tags: (formData.get('tags') as string)?.split(',').map(tag => tag.trim()).filter(tag => tag) || [],
         notes: formData.get('notes') as string,
       });
-      showToast(`Prospect "${updatedProspect.name}" updated successfully!`, 'success');
+      if (updatedProspect) {
+        showToast(`Prospect "${(updatedProspect as Prospect).name}" updated successfully!`, 'success');
+      } else {
+        showToast('Prospect updated successfully!', 'success');
+      }
       setShowEditProspectModal(false);
       setEditingProspect(null);
     } catch (error) {
@@ -95,6 +102,38 @@ const ProspectsPage: React.FC = () => {
         }
       }
     });
+  };
+
+  const handleStatusChange = async (prospectId: string, newStatus: ProspectStatus) => {
+    try {
+      await updateProspect(prospectId, { status: newStatus });
+      showToast(`Prospect status updated to ${newStatus}`, 'success');
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Failed to update status', 'error');
+    }
+  };
+
+  const handleOpenStatusModal = (prospect: Prospect) => {
+    setUpdatingStatusProspect(prospect);
+    setShowUpdateStatusModal(true);
+  };
+
+  const handleUpdateStatus = async (newStatus: ProspectStatus) => {
+    if (!updatingStatusProspect) return;
+
+    try {
+      await updateProspect(updatingStatusProspect.id, { status: newStatus });
+      showToast(`Prospect status updated to ${newStatus}`, 'success');
+      setShowUpdateStatusModal(false);
+      setUpdatingStatusProspect(null);
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Failed to update status', 'error');
+    }
+  };
+
+  const handleCloseStatusModal = () => {
+    setShowUpdateStatusModal(false);
+    setUpdatingStatusProspect(null);
   };
 
   const handleAddToCampaign = async () => {
@@ -222,15 +261,7 @@ const ProspectsPage: React.FC = () => {
     }
   };
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'NEW': return 'status bg-blue-100 text-blue-800';
-      case 'CONTACTED': return 'status bg-yellow-100 text-yellow-800';
-      case 'REPLIED': return 'status bg-green-100 text-green-800';
-      case 'NOT_INTERESTED': return 'status bg-gray-100 text-gray-800';
-      default: return 'status bg-gray-100 text-gray-800';
-    }
-  };
+  
 
   const getInitials = (name: string) => {
     return name
@@ -239,6 +270,31 @@ const ProspectsPage: React.FC = () => {
       .join('')
       .toUpperCase()
       .slice(0, 2);
+  };
+
+  const getStatusStyle = (status: string) => {
+    switch (status) {
+      case 'NEW':
+        return 'bg-gray-100 text-gray-800';
+      case 'CONTACTED':
+        return 'bg-blue-100 text-blue-800';
+      case 'ENGAGED':
+        return 'bg-purple-100 text-purple-800';
+      case 'REPLIED':
+        return 'bg-green-100 text-green-800';
+      case 'INTERESTED':
+        return 'bg-emerald-100 text-emerald-800';
+      case 'NOT_INTERESTED':
+        return 'bg-red-100 text-red-800';
+      case 'OPTED_OUT':
+        return 'bg-orange-100 text-orange-800';
+      case 'CONVERTED':
+        return 'bg-indigo-100 text-indigo-800';
+      case 'BOUNCED':
+        return 'bg-yellow-100 text-yellow-800';
+      default:
+        return 'bg-gray-100 text-gray-800';
+    }
   };
 
   return (
@@ -276,8 +332,13 @@ const ProspectsPage: React.FC = () => {
                 <option value="">All Status</option>
                 <option value="NEW">New</option>
                 <option value="CONTACTED">Contacted</option>
+                <option value="ENGAGED">Engaged</option>
                 <option value="REPLIED">Replied</option>
+                <option value="INTERESTED">Interested</option>
                 <option value="NOT_INTERESTED">Not Interested</option>
+                <option value="OPTED_OUT">Opted Out</option>
+                <option value="CONVERTED">Converted</option>
+                <option value="BOUNCED">Bounced</option>
               </select>
             </div>
 
@@ -670,9 +731,8 @@ const ProspectsPage: React.FC = () => {
             </button>
           </div>
         ) : (
-          <div className="p-6">
-            {/* Select All Checkbox */}
-            <div className="mb-6 flex items-center gap-3 p-3 bg-slate-50 rounded-lg border border-slate-200">
+          <div className="overflow-x-auto">
+            <div className="mb-4 flex items-center gap-3 p-3 bg-slate-50 rounded-lg border border-slate-200">
               <input
                 type="checkbox"
                 checked={selectedProspects.length === prospects.length}
@@ -690,130 +750,122 @@ const ProspectsPage: React.FC = () => {
               </span>
             </div>
 
-            {/* Prospects Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {prospects.map((lead) => (
-                <div
-                  key={lead.id}
-                  className={`relative bg-white border-2 rounded-xl p-6 transition-all duration-200 hover:shadow-lg hover:border-blue-200 ${
-                    selectedProspects.includes(lead.id)
-                      ? 'border-blue-500 ring-2 ring-blue-100'
-                      : 'border-slate-200'
-                  }`}
-                >
-                  {/* Selection Checkbox */}
-                  <div className="absolute top-4 left-4">
-                    <input
-                      type="checkbox"
-                      checked={selectedProspects.includes(lead.id)}
-                      onChange={() => toggleProspectSelection(lead.id)}
-                      className="rounded border-slate-300"
-                    />
-                  </div>
-
-                  {/* Card Header - Prospect Info */}
-                  <div className="mb-4">
-                    <div className="flex items-start gap-4">
-                      <div className="w-14 h-14 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center text-white font-semibold text-lg flex-shrink-0">
-                        {getInitials(lead.name)}
+            {/* Prospects Table */}
+            <table className="w-full bg-white rounded-lg overflow-hidden">
+              <thead className="bg-gray-50 border-b border-gray-200">
+                <tr>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-12">
+                    <span className="sr-only">Select</span>
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Name
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Email
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Role
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Company
+                  </th>
+                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Actions
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-200">
+                {prospects.map((lead) => (
+                  <tr
+                    key={lead.id}
+                    className={`hover:bg-gray-50 transition-colors ${
+                      selectedProspects.includes(lead.id) ? 'bg-blue-50' : ''
+                    }`}
+                  >
+                    <td className="px-4 py-4 whitespace-nowrap">
+                      <input
+                        type="checkbox"
+                        checked={selectedProspects.includes(lead.id)}
+                        onChange={() => toggleProspectSelection(lead.id)}
+                        className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                      />
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="flex items-center">
+                        <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-lg flex items-center justify-center text-white font-semibold text-sm mr-3">
+                          {getInitials(lead.name)}
+                        </div>
+                        <div>
+                          <div className="text-sm font-medium text-gray-900">{lead.name}</div>
+                          {lead.researchData && (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">
+                              Researched
+                            </span>
+                          )}
+                        </div>
                       </div>
-                      <div className="flex-1 min-w-0">
-                        <h3 className="font-semibold text-slate-900 text-lg mb-1 pr-2">{lead.name}</h3>
-                        <p className="text-sm text-slate-600 mb-2">{lead.title || 'No title'}</p>
-                        {lead.linkedinProfile && (
-                          <a
-                            href={lead.linkedinProfile}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-blue-600 hover:text-blue-700 text-xs flex items-center font-medium"
-                          >
-                            <i className="fab fa-linkedin mr-1" />
-                            LinkedIn Profile
-                          </a>
-                        )}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="text-sm text-gray-900">{lead.email}</div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="text-sm text-gray-900">{lead.title || 'No title'}</div>
+                      <div className={`text-xs px-2 py-1 rounded-full inline-block mt-1 ${getStatusStyle(lead.status)}`}>
+                        {lead.status.charAt(0).toUpperCase() + lead.status.slice(1).replace('_', ' ')}
                       </div>
-                    </div>
-                  </div>
-
-                  {/* Company Info */}
-                  <div className="mb-4">
-                    <div className="flex items-center gap-2 mb-2">
-                      <i className="fas fa-building text-slate-400 text-sm"></i>
-                      <span className="font-medium text-slate-900">{lead.company}</span>
-                    </div>
-                    {lead.website && (
-                      <div className="flex items-center gap-2">
-                        <i className="fas fa-globe text-slate-400 text-sm"></i>
-                        <a
-                          href={lead.website}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-blue-600 hover:text-blue-700 text-sm truncate font-medium"
-                          title={lead.website}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="text-sm text-gray-900">{lead.company}</div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                      <div className="flex items-center justify-end gap-2">
+                        {/* Status Change Button */}
+                        <button
+                          className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+                          title="Update Status"
+                          onClick={() => handleOpenStatusModal(lead)}
                         >
-                          {lead.website.replace(/^https?:\/\//, '').split('/')[0]}
-                        </a>
+                          <i className="fas fa-sync-alt"></i>
+                        </button>
+                        
+                        {/* Edit Button */}
+                        <button
+                          className="p-2 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded-lg transition-colors"
+                          title="Edit"
+                          onClick={() => handleEditProspectClick(lead)}
+                        >
+                          <i className="fas fa-edit"></i>
+                        </button>
+                        
+                        {/* Delete Button */}
+                        <button
+                          className="p-2 text-red-600 hover:text-red-800 hover:bg-red-50 rounded-lg transition-colors"
+                          title="Delete"
+                          onClick={() => handleDeleteProspect(lead.id, lead.name)}
+                        >
+                          <i className="fas fa-trash"></i>
+                        </button>
                       </div>
-                    )}
-                  </div>
-
-                  {/* Contact Details */}
-                  <div className="mb-4 space-y-2">
-                    {lead.phoneNumber && (
-                      <div className="flex items-center gap-2">
-                        <i className="fas fa-phone text-slate-400 text-sm"></i>
-                        <span className="text-sm text-slate-700">{lead.phoneNumber}</span>
-                      </div>
-                    )}
-                    {lead.location && (
-                      <div className="flex items-center gap-2">
-                        <i className="fas fa-map-marker-alt text-slate-400 text-sm"></i>
-                        <span className="text-sm text-slate-700">{lead.location}</span>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Status Indicators */}
-                  <div className="mb-4 flex flex-wrap gap-2">
-                    {lead.researchData ? (
-                      <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-emerald-100 text-emerald-700 border border-emerald-200">
-                        <i className="fas fa-check-circle mr-1.5" />
-                        Researched
-                      </span>
-                    ) : (
-                      <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-slate-100 text-slate-600 border border-slate-200">
-                        <i className="fas fa-minus-circle mr-1.5" />
-                        Not Researched
-                      </span>
-                    )}
-                    <span className={`status-badge ${lead.status}`}>
-                      {lead.status.charAt(0).toUpperCase() + lead.status.slice(1).replace('_', ' ')}
-                    </span>
-                  </div>
-
-                  {/* Actions */}
-                  <div className="flex gap-2 pt-4 border-t border-slate-100">
-                    <button
-                      className="flex-1 flex items-center justify-center gap-2 px-3 py-2 text-sm font-medium text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition-colors"
-                      onClick={() => handleEditProspectClick(lead)}
-                    >
-                      <i className="fas fa-edit" />
-                      Edit
-                    </button>
-                    <button
-                      className="flex-1 flex items-center justify-center gap-2 px-3 py-2 text-sm font-medium text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors"
-                      onClick={() => handleDeleteProspect(lead.id, lead.name)}
-                    >
-                      <i className="fas fa-trash" />
-                      Delete
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         )}
       </div>
+
+      {/* Update Status Modal */}
+      {showUpdateStatusModal && updatingStatusProspect && (
+        <UpdateStatusModal
+          isOpen={showUpdateStatusModal}
+          onClose={handleCloseStatusModal}
+          onUpdateStatus={handleUpdateStatus}
+          prospectName={updatingStatusProspect.name}
+          currentStatus={updatingStatusProspect.status}
+          loading={false}
+        />
+      )}
 
           </div>
   );

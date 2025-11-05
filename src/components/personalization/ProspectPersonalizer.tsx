@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { FiArrowLeft, FiSave, FiMail, FiUser, FiHome, FiBriefcase, FiInfo, FiSettings, FiLinkedin, FiPhone, FiCheckSquare, FiZap } from 'react-icons/fi';
 import AIEmailGenerator from './AIEmailGenerator';
+import CustomEmailBodyEditor from '../rich-text/CustomEmailBodyEditor';
 
 interface Prospect {
   id: number;
@@ -517,12 +518,13 @@ const ProspectPersonalizer: React.FC = () => {
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Personalized Introduction
                 </label>
-                <textarea
+                <CustomEmailBodyEditor
                   value={formData.introduction}
-                  onChange={(e) => handleInputChange('introduction', e.target.value)}
+                  onChange={(value) => handleInputChange('introduction', value)}
                   placeholder="Add personalized opening... (use {'{name}'}, {'{company}'}, {'{title}'} as variables)"
-                  rows={4}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+                  height={120}
+                  enableVariables={true}
+                  availableVariables={['name', 'company', 'title', 'firstName', 'lastName']}
                 />
               </div>
 
@@ -530,12 +532,13 @@ const ProspectPersonalizer: React.FC = () => {
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Company Reference
                 </label>
-                <textarea
+                <CustomEmailBodyEditor
                   value={formData.companyReference}
-                  onChange={(e) => handleInputChange('companyReference', e.target.value)}
+                  onChange={(value) => handleInputChange('companyReference', value)}
                   placeholder="Mention something specific about their company..."
-                  rows={3}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+                  height={90}
+                  enableVariables={true}
+                  availableVariables={['name', 'company', 'title', 'firstName', 'lastName']}
                 />
               </div>
             </div>
@@ -563,12 +566,13 @@ const ProspectPersonalizer: React.FC = () => {
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Email Body
                 </label>
-                <textarea
+                <CustomEmailBodyEditor
                   value={formData.customBody}
-                  onChange={(e) => handleInputChange('customBody', e.target.value)}
+                  onChange={(content) => handleInputChange('customBody', content)}
                   placeholder="Write your custom email content..."
-                  rows={8}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+                  height={200}
+                  enableVariables={true}
+                  availableVariables={['name', 'company', 'title', 'firstName', 'lastName']}
                 />
               </div>
             </div>
@@ -601,11 +605,16 @@ const ProspectPersonalizer: React.FC = () => {
                       ? (formData.customSubject || 'No subject')
                       : (formData.subject || 'No subject')
                   }</p>
-                  <p>{
+                  <div>{
                     formData.useCustomEmail 
-                      ? (formData.customBody || 'Email body will appear here...')
+                      ? (formData.customBody ? (
+                          <div 
+                            dangerouslySetInnerHTML={{ __html: formData.customBody }} 
+                            className="prose prose-sm max-w-none"
+                          />
+                        ) : 'Email body will appear here...')
                       : `${formData.greeting || 'Greeting'}\n\n${formData.introduction || 'Personalized introduction will appear here...'}\n\n${formData.companyReference || ''}`
-                  }</p>
+                  }</div>
                 </div>
               </div>
             </div>

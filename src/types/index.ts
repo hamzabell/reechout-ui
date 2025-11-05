@@ -102,6 +102,10 @@ export interface EmailTemplate {
   subject: string;
   body: string;
   variables: string[];
+  fromEmail?: string;
+  category?: string;
+  lastModified?: string;
+  bodyHtml?: string;
 }
 
 export interface CampaignStats {

@@ -5,6 +5,7 @@ import { useModalWithAutoId } from '../providers/ModalProvider';
 import { EmailTemplate } from '../types';
 import Button from '../components/Button';
 import ModalWrapper from '../components/ModalWrapper';
+import CustomEmailBodyEditor from '../components/rich-text/CustomEmailBodyEditor';
 
 const TemplatesPage: React.FC = () => {
   const { generateTemplate, analyzeEmail, loading } = useAI();
@@ -131,12 +132,13 @@ Best regards,
               <label className="block text-sm font-medium text-text-primary mb-2">
                 Email Body
               </label>
-              <textarea
+              <CustomEmailBodyEditor
                 value={templateForm.body}
-                onChange={(e) => setTemplateForm(prev => ({ ...prev, body: e.target.value }))}
+                onChange={(value) => setTemplateForm(prev => ({ ...prev, body: value }))}
                 placeholder="Write your email template here. Use {{variable}} for personalization."
-                rows={10}
-                className="w-full px-4 py-2 bg-bg-secondary border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary resize-none"
+                height={250}
+                enableVariables={true}
+                availableVariables={extractVariables(templateForm.subject + ' ' + templateForm.body)}
               />
             </div>
 

@@ -1,306 +1,243 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Button from '../components/Button';
-import { useProspects } from '../hooks/useProspects';
-import { Prospect } from '../types';
+import { Prospect, ProspectStatus } from '../types';
 
 const AddProspectPage: React.FC = () => {
   const navigate = useNavigate();
-  const { createProspect } = useProspects();
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+  // Form state
+  const [formData, setFormData] = useState({
+    name: '',
+    email: '',
+    company: '',
+    title: '',
+    website: '',
+    industry: '',
+    location: '',
+    linkedinProfile: ''
+  });
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({ ...prev, [name]: value }));
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
 
-    const formData = new FormData(e.currentTarget);
-
-    // Extract tags from comma-separated string
-    const tagsString = formData.get('tags') as string;
-    const tags = tagsString ? tagsString.split(',').map(tag => tag.trim()).filter(tag => tag.length > 0) : [];
-
-    const prospectData: Omit<Prospect, 'id' | 'status' | 'score' | 'researchData' | 'personalizationData' | 'lastContacted' | 'nextFollowUp' | 'isOptedOut' | 'createdAt' | 'updatedAt'> = {
-      name: formData.get('name') as string,
-      email: formData.get('email') as string,
-      company: formData.get('company') as string,
-      title: formData.get('title') as string || undefined,
-      website: formData.get('website') as string || undefined,
-      phoneNumber: formData.get('phone') as string || undefined,
-      industry: formData.get('industry') as string || undefined,
-      location: formData.get('location') as string || undefined,
-      linkedinProfile: formData.get('linkedinProfile') as string || undefined,
-      tags,
-      notes: formData.get('notes') as string || undefined,
-      timezone: undefined,
-      source: undefined,
-      assignedTo: undefined,
-    };
-
     try {
-      await createProspect(prospectData as Prospect);
+      // Simulate API call
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      // Create new prospect object
+      const newProspect: Prospect = {
+        id: Date.now().toString(), // Generate temporary ID
+        ...formData,
+        status: 'NEW' as ProspectStatus,
+        score: 50,
+        tags: [],
+        isOptedOut: false,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        researchData: undefined,
+        personalizationData: undefined,
+        lastContacted: undefined,
+        nextFollowUp: undefined,
+        timezone: undefined,
+        source: undefined,
+        assignedTo: undefined,
+        phoneNumber: undefined,
+        notes: undefined
+      };
+
+      // In a real app, this would call an API
+      console.log('Creating new prospect:', newProspect);
+      
+      // Show success message
+      alert('Prospect created successfully (this is a demo)');
+      
+      // Navigate back to prospects page
       navigate('/dashboard/prospects');
     } catch (error) {
       console.error('Error creating prospect:', error);
-      // Error is handled by the hook with toast notification
+      alert('Error creating prospect');
     } finally {
       setIsSubmitting(false);
     }
   };
 
   return (
-    <div className="max-w-4xl mx-auto">
+    <div className="p-6">
       {/* Header */}
-      <div className="mb-8">
-        <div className="flex items-center justify-between mb-6">
+      <div className="mb-6">
+        <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold text-text-primary mb-2">Add New Prospect</h1>
-            <p className="text-text-secondary">
-              Add a new prospect to your database. Fill in the details below to get started.
-            </p>
+            <h1 className="text-2xl font-bold text-gray-900 mb-2">Add New Prospect</h1>
+            <p className="text-gray-600">Add a new prospect to your database</p>
           </div>
           <Button
             variant="secondary"
             onClick={() => navigate('/dashboard/prospects')}
-            className="flex items-center space-x-2"
+            disabled={isSubmitting}
           >
-            <i className="fas fa-arrow-left" />
-            <span>Back to Prospects</span>
+            Cancel
           </Button>
         </div>
       </div>
 
-      {/* Form Card */}
-      <div className="bg-surface rounded-xl border border-border shadow-sm">
-        <div className="p-8">
-          <form onSubmit={handleSubmit} className="space-y-6">
-            {/* Basic Information */}
-            <div>
-              <h3 className="text-lg font-semibold text-text-primary mb-4 flex items-center">
-                <i className="fas fa-user-circle mr-2 text-primary" />
-                Basic Information
-              </h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
-                  <label className="block text-sm font-medium text-text-primary mb-2">
-                    Name <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    name="name"
-                    type="text"
-                    required
-                    className="w-full px-4 py-3 bg-bg-secondary border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-colors"
-                    placeholder="John Doe"
-                    disabled={isSubmitting}
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-text-primary mb-2">
-                    Email <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    name="email"
-                    type="email"
-                    required
-                    className="w-full px-4 py-3 bg-bg-secondary border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-colors"
-                    placeholder="john@example.com"
-                    disabled={isSubmitting}
-                  />
-                </div>
+      {/* Form */}
+      <div className="bg-white rounded-lg shadow">
+        <form onSubmit={handleSubmit} className="p-6 space-y-6">
+          {/* Basic Information */}
+          <div>
+            <h3 className="text-lg font-medium text-gray-900 mb-4">Basic Information</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div>
+                <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-2">
+                  Name *
+                </label>
+                <input
+                  type="text"
+                  id="name"
+                  name="name"
+                  value={formData.name}
+                  onChange={handleInputChange}
+                  required
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="John Smith"
+                />
               </div>
-            </div>
-
-            {/* Professional Information */}
-            <div>
-              <h3 className="text-lg font-semibold text-text-primary mb-4 flex items-center">
-                <i className="fas fa-briefcase mr-2 text-primary" />
-                Professional Information
-              </h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
-                  <label className="block text-sm font-medium text-text-primary mb-2">
-                    Company <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    name="company"
-                    type="text"
-                    required
-                    className="w-full px-4 py-3 bg-bg-secondary border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-colors"
-                    placeholder="Acme Corp"
-                    disabled={isSubmitting}
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-text-primary mb-2">
-                    Title
-                  </label>
-                  <input
-                    name="title"
-                    type="text"
-                    className="w-full px-4 py-3 bg-bg-secondary border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-colors"
-                    placeholder="CEO"
-                    disabled={isSubmitting}
-                  />
-                </div>
+              
+              <div>
+                <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-2">
+                  Email *
+                </label>
+                <input
+                  type="email"
+                  id="email"
+                  name="email"
+                  value={formData.email}
+                  onChange={handleInputChange}
+                  required
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="john@example.com"
+                />
               </div>
-            </div>
-
-            {/* Contact Information */}
-            <div>
-              <h3 className="text-lg font-semibold text-text-primary mb-4 flex items-center">
-                <i className="fas fa-address-card mr-2 text-primary" />
-                Contact Information
-              </h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
-                  <label className="block text-sm font-medium text-text-primary mb-2">
-                    Website
-                  </label>
-                  <input
-                    name="website"
-                    type="url"
-                    className="w-full px-4 py-3 bg-bg-secondary border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-colors"
-                    placeholder="https://example.com"
-                    disabled={isSubmitting}
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-text-primary mb-2">
-                    Phone
-                  </label>
-                  <input
-                    name="phone"
-                    type="tel"
-                    className="w-full px-4 py-3 bg-bg-secondary border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-colors"
-                    placeholder="+1 (555) 123-4567"
-                    disabled={isSubmitting}
-                  />
-                </div>
+              
+              <div>
+                <label htmlFor="company" className="block text-sm font-medium text-gray-700 mb-2">
+                  Company *
+                </label>
+                <input
+                  type="text"
+                  id="company"
+                  name="company"
+                  value={formData.company}
+                  onChange={handleInputChange}
+                  required
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="TechCorp"
+                />
               </div>
-            </div>
-
-            {/* Additional Information */}
-            <div>
-              <h3 className="text-lg font-semibold text-text-primary mb-4 flex items-center">
-                <i className="fas fa-info-circle mr-2 text-primary" />
-                Additional Information
-              </h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
-                  <label className="block text-sm font-medium text-text-primary mb-2">
-                    Industry
-                  </label>
-                  <select
-                    name="industry"
-                    className="w-full px-4 py-3 bg-bg-secondary border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-colors"
-                    disabled={isSubmitting}
-                  >
-                    <option value="">Select industry...</option>
-                    <option value="Technology">Technology</option>
-                    <option value="Healthcare">Healthcare</option>
-                    <option value="Finance">Finance</option>
-                    <option value="Manufacturing">Manufacturing</option>
-                    <option value="Retail">Retail</option>
-                    <option value="Education">Education</option>
-                    <option value="Real Estate">Real Estate</option>
-                    <option value="Consulting">Consulting</option>
-                    <option value="Media">Media</option>
-                    <option value="Other">Other</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-text-primary mb-2">
-                    Location
-                  </label>
-                  <input
-                    name="location"
-                    type="text"
-                    className="w-full px-4 py-3 bg-bg-secondary border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-colors"
-                    placeholder="New York, NY"
-                    disabled={isSubmitting}
-                  />
-                </div>
+              
+              <div>
+                <label htmlFor="title" className="block text-sm font-medium text-gray-700 mb-2">
+                  Title
+                </label>
+                <input
+                  type="text"
+                  id="title"
+                  name="title"
+                  value={formData.title}
+                  onChange={handleInputChange}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="Engineering Manager"
+                />
               </div>
-              <div className="mt-6">
-                <label className="block text-sm font-medium text-text-primary mb-2">
+              
+              <div>
+                <label htmlFor="website" className="block text-sm font-medium text-gray-700 mb-2">
+                  Website
+                </label>
+                <input
+                  type="url"
+                  id="website"
+                  name="website"
+                  value={formData.website}
+                  onChange={handleInputChange}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="https://example.com"
+                />
+              </div>
+              
+              <div>
+                <label htmlFor="industry" className="block text-sm font-medium text-gray-700 mb-2">
+                  Industry
+                </label>
+                <input
+                  type="text"
+                  id="industry"
+                  name="industry"
+                  value={formData.industry}
+                  onChange={handleInputChange}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="Technology"
+                />
+              </div>
+              
+              <div>
+                <label htmlFor="location" className="block text-sm font-medium text-gray-700 mb-2">
+                  Location
+                </label>
+                <input
+                  type="text"
+                  id="location"
+                  name="location"
+                  value={formData.location}
+                  onChange={handleInputChange}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="San Francisco, CA"
+                />
+              </div>
+              
+              <div>
+                <label htmlFor="linkedinProfile" className="block text-sm font-medium text-gray-700 mb-2">
                   LinkedIn Profile
                 </label>
                 <input
-                  name="linkedinProfile"
                   type="url"
-                  className="w-full px-4 py-3 bg-bg-secondary border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-colors"
-                  placeholder="https://linkedin.com/in/johndoe"
-                  disabled={isSubmitting}
+                  id="linkedinProfile"
+                  name="linkedinProfile"
+                  value={formData.linkedinProfile}
+                  onChange={handleInputChange}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="https://linkedin.com/in/johnsmith"
                 />
               </div>
             </div>
+          </div>
 
-            {/* Tags and Notes */}
-            <div>
-              <h3 className="text-lg font-semibold text-text-primary mb-4 flex items-center">
-                <i className="fas fa-tags mr-2 text-primary" />
-                Tags and Notes
-              </h3>
-              <div className="space-y-6">
-                <div>
-                  <label className="block text-sm font-medium text-text-primary mb-2">
-                    Tags
-                  </label>
-                  <input
-                    name="tags"
-                    type="text"
-                    className="w-full px-4 py-3 bg-bg-secondary border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-colors"
-                    placeholder="vip, enterprise, decision-maker (comma separated)"
-                    disabled={isSubmitting}
-                  />
-                  <p className="text-sm text-text-secondary mt-1">
-                    Separate multiple tags with commas
-                  </p>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-text-primary mb-2">
-                    Notes
-                  </label>
-                  <textarea
-                    name="notes"
-                    rows={4}
-                    className="w-full px-4 py-3 bg-bg-secondary border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-colors resize-vertical"
-                    placeholder="Additional notes about this prospect..."
-                    disabled={isSubmitting}
-                  />
-                </div>
-              </div>
-            </div>
-
-            {/* Form Actions */}
-            <div className="flex items-center justify-end space-x-4 pt-6 border-t border-border">
-              <Button
-                variant="secondary"
-                type="button"
-                onClick={() => navigate('/dashboard/prospects')}
-                disabled={isSubmitting}
-              >
-                Cancel
-              </Button>
-              <Button
-                type="submit"
-                disabled={isSubmitting}
-                className="flex items-center space-x-2"
-              >
-                {isSubmitting ? (
-                  <>
-                    <i className="fas fa-spinner fa-spin" />
-                    <span>Adding Prospect...</span>
-                  </>
-                ) : (
-                  <>
-                    <i className="fas fa-plus-circle" />
-                    <span>Add Prospect</span>
-                  </>
-                )}
-              </Button>
-            </div>
-          </form>
-        </div>
+          {/* Form Actions */}
+          <div className="flex justify-end space-x-4 pt-6 border-t border-gray-200">
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => navigate('/dashboard/prospects')}
+              disabled={isSubmitting}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="submit"
+              disabled={isSubmitting}
+            >
+              {isSubmitting ? 'Creating...' : 'Create Prospect'}
+            </Button>
+          </div>
+        </form>
       </div>
     </div>
   );

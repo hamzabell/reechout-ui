@@ -60,6 +60,8 @@ function App() {
               isAuthenticated ? <Navigate to="/dashboard" replace /> : <LoginPage />
             } 
           />
+          
+          {/* Test Routes */}
 
           {/* Protected Routes */}
           <Route

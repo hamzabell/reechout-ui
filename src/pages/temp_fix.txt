@@ -1,0 +1,31 @@
+  const handleEditProspect = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (!editingProspect) return;
+
+    const formData = new FormData(e.currentTarget);
+
+    try {
+      const updatedProspect = await updateProspect(editingProspect.id, {
+        name: formData.get('name') as string,
+        email: formData.get('email') as string,
+        company: formData.get('company') as string,
+        title: formData.get('title') as string,
+        website: formData.get('website') as string,
+        phoneNumber: formData.get('phone') as string,
+        industry: formData.get('industry') as string,
+        location: formData.get('location') as string,
+        linkedinProfile: formData.get('linkedinProfile') as string,
+        tags: (formData.get('tags') as string)?.split(',').map(tag => tag.trim()).filter(tag => tag) || [],
+        notes: formData.get('notes') as string,
+      });
+      
+      if (updatedProspect) {
+        showToast(`Prospect "${updatedProspect.name}" updated successfully!`, 'success');
+      }
+      
+      setShowEditProspectModal(false);
+      setEditingProspect(null);
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Failed to update lead', 'error');
+    }
+  };

@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { FiArrowLeft, FiEdit3, FiMail, FiInfo, FiSettings, FiToggleLeft, FiToggleRight, FiRefreshCw, FiCopy, FiCheck, FiX, FiChevronDown } from 'react-icons/fi';
+import CustomEmailBodyEditor from '../components/rich-text/CustomEmailBodyEditor';
 
 interface Prospect {
   id: number;
@@ -440,7 +441,14 @@ const StepPersonalizationPage: React.FC = () => {
                     </div>
                     <div>
                       <span className="font-medium text-blue-800">Body:</span>
-                      <p className="text-blue-700 whitespace-pre-wrap">{stepContent.custom.body || 'No body set'}</p>
+                      <div className="text-blue-700">
+                        {stepContent.custom.body ? (
+                          <div 
+                            dangerouslySetInnerHTML={{ __html: stepContent.custom.body }} 
+                            className="prose prose-sm max-w-none"
+                          />
+                        ) : 'No body set'}
+                      </div>
                     </div>
                   </div>
                   <div className="flex gap-2 mt-3">
@@ -589,12 +597,13 @@ const StepPersonalizationPage: React.FC = () => {
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Body</label>
-                  <textarea
+                  <CustomEmailBodyEditor
                     value={editForm.body}
-                    onChange={(e) => setEditForm({...editForm, body: e.target.value})}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
-                    rows={8}
+                    onChange={(content) => setEditForm({...editForm, body: content})}
                     placeholder="Enter the complete email content..."
+                    height={200}
+                    enableVariables={true}
+                    availableVariables={['name', 'company', 'title', 'firstName', 'lastName']}
                   />
                 </div>
               </div>

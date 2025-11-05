@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import ModalWrapper from '../ModalWrapper';
+import CustomEmailBodyEditor from '../rich-text/CustomEmailBodyEditor';
 import {
   FiX,
   FiMail,
@@ -315,12 +316,13 @@ const StepEditor: React.FC<StepEditorProps> = ({
                         <label className="block text-xs font-medium text-gray-600 mb-1">
                           Email Body
                         </label>
-                        <textarea
+                        <CustomEmailBodyEditor
                           value={editedStep.emailAction.customBody || ''}
-                          onChange={(e) => updateEmailAction({ customBody: e.target.value })}
+                          onChange={(value) => updateEmailAction({ customBody: value })}
                           placeholder="Enter email content..."
-                          rows={4}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm resize-none"
+                          height={150}
+                          enableVariables={true}
+                          availableVariables={['name', 'company', 'title', 'firstName', 'lastName']}
                         />
                       </div>
                     </>
