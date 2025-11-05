@@ -129,6 +129,10 @@ const SequenceDetailsPage: React.FC = () => {
   const [scheduledTime, setScheduledTime] = useState<string>('');
   const [timezone, setTimezone] = useState<string>('UTC');
   
+  // State for prospect pause/restart modal
+  const [showProspectPauseModal, setShowProspectPauseModal] = useState(false);
+  const [prospectToToggle, setProspectToToggle] = useState<CampaignProspect | null>(null);
+  
   // Check if this is a newly created blank sequence
   const isNewSequence = id?.startsWith('seq_') || false;
 
@@ -272,7 +276,7 @@ const SequenceDetailsPage: React.FC = () => {
       },
       {
         id: 'cp_2',
-        status: 'PENDING',
+        status: 'PAUSED',
         prospect: {
           id: 'prospect_2',
           name: 'Jane Smith',
@@ -288,11 +292,63 @@ const SequenceDetailsPage: React.FC = () => {
             id: 'pe_3',
             subject: 'Welcome to our platform!',
             body: 'Hi Jane Smith, welcome to Design Inc! We\'re excited to have you on board and wanted to personally reach out to help you get started.',
-            status: 'DRAFT',
+            status: 'SENT',
             stepEmailAction: {
               step: {
                 stepNumber: 1,
                 name: 'Welcome Email'
+              }
+            }
+          }
+        ]
+      },
+      {
+        id: 'cp_3',
+        status: 'COMPLETED',
+        prospect: {
+          id: 'prospect_3',
+          name: 'Bob Wilson',
+          email: 'bob@example.com',
+          company: 'StartupXYZ',
+          title: 'CTO',
+          location: 'Austin, TX',
+          industry: 'Technology',
+          notes: 'Technical leader, very responsive'
+        },
+        personalizedEmails: [
+          {
+            id: 'pe_4',
+            subject: 'Welcome to our platform!',
+            body: 'Hi Bob Wilson, welcome to StartupXYZ! We\'re excited to have you on board and wanted to personally reach out to help you get started.',
+            status: 'SENT',
+            stepEmailAction: {
+              step: {
+                stepNumber: 1,
+                name: 'Welcome Email'
+              }
+            }
+          },
+          {
+            id: 'pe_5',
+            subject: 'Discover features tailored for CTOs',
+            body: 'Hi Bob Wilson, now that you\'re settled in, let us show you some powerful features that would be perfect for a CTO at StartupXYZ.',
+            status: 'SENT',
+            stepEmailAction: {
+              step: {
+                stepNumber: 2,
+                name: 'Feature Introduction'
+              }
+            }
+          },
+          {
+            id: 'pe_6',
+            subject: 'LinkedIn Follow-up',
+            body: 'Hi Bob Wilson, following up on our previous conversations about technical implementations.',
+            status: 'COMPLETED',
+            stepEmailAction: {
+              step: {
+                stepNumber: 3,
+                name: 'LinkedIn Follow-up'
               }
             }
           }
@@ -310,9 +366,9 @@ const SequenceDetailsPage: React.FC = () => {
       totalSteps: 3,
       emailSteps: 2,
       taskSteps: 1,
-      totalProspects: 2,
+      totalProspects: 3,
       activeProspects: 1,
-      completedProspects: 0
+      completedProspects: 1
     }
   });
 
@@ -575,6 +631,32 @@ const SequenceDetailsPage: React.FC = () => {
     setShowProspectSelectionModal(false);
     setSelectedProspectsToAdd([]);
     showSuccess(`Added ${prospectsToAdd.length} prospects to the sequence successfully!`);
+  };
+
+  // Handle pause/restart prospect
+  const handleToggleProspectPause = (prospect: CampaignProspect) => {
+    setProspectToToggle(prospect);
+    setShowProspectPauseModal(true);
+  };
+
+  // Confirm prospect pause/restart
+  const handleConfirmProspectToggle = () => {
+    if (!prospectToToggle) return;
+
+    const newStatus = prospectToToggle.status === 'ACTIVE' ? 'PAUSED' : 'ACTIVE';
+    const action = newStatus === 'PAUSED' ? 'paused' : 'restarted';
+
+    // Update the prospect status
+    setCampaign(prev => ({
+      ...prev,
+      campaignProspects: prev.campaignProspects.map(cp =>
+        cp.id === prospectToToggle.id ? { ...cp, status: newStatus } : cp
+      )
+    }));
+
+    showSuccess(`Prospect "${prospectToToggle.prospect.name}" ${action} successfully!`);
+    setShowProspectPauseModal(false);
+    setProspectToToggle(null);
   };
 
   
@@ -1021,16 +1103,16 @@ const SequenceDetailsPage: React.FC = () => {
                         </div>
                       </div>
                     </div>
-                    <div className="bg-gradient-to-br from-amber-50 to-yellow-50 border border-amber-200 rounded-xl p-4">
+                    <div className="bg-gradient-to-br from-orange-50 to-red-50 border border-orange-200 rounded-xl p-4">
                       <div className="flex items-center justify-between">
                         <div>
-                          <p className="text-sm text-amber-600 font-medium">Pending</p>
-                          <p className="text-2xl font-bold text-amber-900">
-                            {campaign.campaignProspects.filter(cp => cp.status === 'PENDING').length}
+                          <p className="text-sm text-orange-600 font-medium">Paused</p>
+                          <p className="text-2xl font-bold text-orange-900">
+                            {campaign.campaignProspects.filter(cp => cp.status === 'PAUSED').length}
                           </p>
                         </div>
-                        <div className="w-10 h-10 bg-amber-100 rounded-lg flex items-center justify-center">
-                          <FiClock className="w-5 h-5 text-amber-600" />
+                        <div className="w-10 h-10 bg-orange-100 rounded-lg flex items-center justify-center">
+                          <FiPause className="w-5 h-5 text-orange-600" />
                         </div>
                       </div>
                     </div>
@@ -1087,14 +1169,14 @@ const SequenceDetailsPage: React.FC = () => {
                                   <span className={`px-3 py-1 rounded-full text-xs font-medium border ${
                                     cp.status === 'ACTIVE'
                                       ? 'bg-emerald-100 text-emerald-700 border-emerald-200'
-                                      : cp.status === 'PENDING'
-                                      ? 'bg-amber-100 text-amber-700 border-amber-200'
+                                      : cp.status === 'PAUSED'
+                                      ? 'bg-orange-100 text-orange-700 border-orange-200'
                                       : cp.status === 'COMPLETED'
                                       ? 'bg-blue-100 text-blue-700 border-blue-200'
                                       : 'bg-slate-100 text-slate-700 border-slate-200'
                                   }`}>
                                     {cp.status === 'ACTIVE' && <FiPlay className="w-3 h-3 inline mr-1" />}
-                                    {cp.status === 'PENDING' && <FiClock className="w-3 h-3 inline mr-1" />}
+                                    {cp.status === 'PAUSED' && <FiPause className="w-3 h-3 inline mr-1" />}
                                     {cp.status === 'COMPLETED' && <FiCheckSquare className="w-3 h-3 inline mr-1" />}
                                     {cp.status}
                                   </span>
@@ -1134,6 +1216,17 @@ const SequenceDetailsPage: React.FC = () => {
                           </div>
 
                           <div className="flex items-center gap-2 ml-4">
+                            <button
+                              onClick={() => handleToggleProspectPause(cp)}
+                              className={`p-2 rounded-lg transition-colors ${
+                                cp.status === 'ACTIVE' 
+                                  ? 'text-amber-600 hover:bg-amber-50' 
+                                  : 'text-emerald-600 hover:bg-emerald-50'
+                              }`}
+                              title={cp.status === 'ACTIVE' ? 'Pause prospect' : 'Restart prospect'}
+                            >
+                              {cp.status === 'ACTIVE' ? <FiPause className="w-4 h-4" /> : <FiPlay className="w-4 h-4" />}
+                            </button>
                             <button
                               onClick={() => navigate(`/dashboard/campaigns/${campaign.id}/prospects/${cp.prospect.id}/steps`)}
                               className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
@@ -1559,6 +1652,128 @@ const SequenceDetailsPage: React.FC = () => {
                   className="flex-1 px-4 py-2 bg-gradient-to-r from-indigo-500 to-purple-600 text-white rounded-xl hover:from-indigo-600 hover:to-purple-700 transition-all duration-200 shadow-lg hover:shadow-xl"
                 >
                   Schedule Campaign
+                </button>
+              </div>
+            </div>
+          </div>
+        </ModalWrapper>
+
+        {/* Prospect Pause/Restart Confirmation Modal */}
+        <ModalWrapper
+          isOpen={showProspectPauseModal}
+          onClose={() => {
+            setShowProspectPauseModal(false);
+            setProspectToToggle(null);
+          }}
+          maxWidth="max-w-md"
+        >
+          <div className="bg-white rounded-2xl">
+            {/* Header */}
+            <div className="px-6 py-4 border-b border-slate-200">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-xl font-semibold text-slate-900">
+                    {prospectToToggle?.status === 'ACTIVE' ? 'Pause Prospect' : 'Restart Prospect'}
+                  </h3>
+                  <p className="text-sm text-slate-600 mt-1">
+                    {prospectToToggle?.status === 'ACTIVE' 
+                      ? 'Pause this prospect in the campaign' 
+                      : 'Restart this prospect in the campaign'}
+                  </p>
+                </div>
+                <button
+                  onClick={() => {
+                    setShowProspectPauseModal(false);
+                    setProspectToToggle(null);
+                  }}
+                  className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
+                >
+                  <FiX className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+
+            {/* Content */}
+            <div className="p-6">
+              {prospectToToggle && (
+                <div className="space-y-4">
+                  <div className="bg-slate-50 rounded-xl p-4">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-lg flex items-center justify-center text-white font-semibold">
+                        {prospectToToggle.prospect.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)}
+                      </div>
+                      <div>
+                        <p className="font-medium text-slate-900">{prospectToToggle.prospect.name}</p>
+                        <p className="text-sm text-slate-600">{prospectToToggle.prospect.email}</p>
+                        {(prospectToToggle.prospect.title || prospectToToggle.prospect.company) && (
+                          <p className="text-sm text-slate-500">
+                            {prospectToToggle.prospect.title && `${prospectToToggle.prospect.title}`}
+                            {prospectToToggle.prospect.title && prospectToToggle.prospect.company && ' at '}
+                            {prospectToToggle.prospect.company && `${prospectToToggle.prospect.company}`}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className={`p-4 rounded-xl border ${
+                    prospectToToggle.status === 'ACTIVE'
+                      ? 'bg-amber-50 border-amber-200'
+                      : 'bg-emerald-50 border-emerald-200'
+                  }`}>
+                    <div className="flex items-start gap-3">
+                      {prospectToToggle.status === 'ACTIVE' ? (
+                        <FiPause className="w-5 h-5 text-amber-600 mt-0.5" />
+                      ) : (
+                        <FiPlay className="w-5 h-5 text-emerald-600 mt-0.5" />
+                      )}
+                      <div>
+                        <p className="text-sm font-medium text-slate-900">
+                          {prospectToToggle.status === 'ACTIVE' ? 'Pausing this prospect will:' : 'Restarting this prospect will:'}
+                        </p>
+                        <ul className="text-sm text-slate-600 mt-2 space-y-1">
+                          {prospectToToggle.status === 'ACTIVE' ? (
+                            <>
+                              <li>• Stop all automated emails and tasks</li>
+                              <li>• Halt the prospect's progress in the sequence</li>
+                              <li>• You can restart them at any time</li>
+                            </>
+                          ) : (
+                            <>
+                              <li>• Resume automated emails and tasks</li>
+                              <li>• Continue from where they left off</li>
+                              <li>• Pick up the sequence at their current step</li>
+                            </>
+                          )}
+                        </ul>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Footer */}
+            <div className="px-6 py-4 border-t border-slate-200 bg-slate-50">
+              <div className="flex gap-3">
+                <button
+                  onClick={() => {
+                    setShowProspectPauseModal(false);
+                    setProspectToToggle(null);
+                  }}
+                  className="flex-1 px-4 py-2 text-slate-700 bg-white border border-slate-300 rounded-xl hover:bg-slate-50 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleConfirmProspectToggle}
+                  className={`flex-1 px-4 py-2 text-white rounded-xl transition-all duration-200 shadow-lg hover:shadow-xl ${
+                    prospectToToggle?.status === 'ACTIVE'
+                      ? 'bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700'
+                      : 'bg-gradient-to-r from-emerald-500 to-green-600 hover:from-emerald-600 hover:to-green-700'
+                  }`}
+                >
+                  {prospectToToggle?.status === 'ACTIVE' ? 'Pause Prospect' : 'Restart Prospect'}
                 </button>
               </div>
             </div>
