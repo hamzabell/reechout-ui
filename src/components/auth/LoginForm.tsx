@@ -34,7 +34,6 @@ const LoginForm: React.FC<LoginFormProps> = ({
     password: "",
   });
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
-  const [loginError, setLoginError] = useState<string>();
 
   const validateEmail = (email: string): string | null => {
     if (!email || email.trim() === "") {
@@ -94,7 +93,6 @@ const LoginForm: React.FC<LoginFormProps> = ({
     } catch (err: any) {
       // Handle validation errors from API
       if (typeof err === 'string') {
-        setLoginError(err);
         return;
       }
 
