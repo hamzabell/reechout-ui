@@ -1,148 +1,57 @@
-import { post, API_ENDPOINTS, authStorage, LoginResponse } from './apiService';
+// This service is now deprecated. Use the NeonProvider and useNeon hook instead.
+// Keeping this file for backward compatibility during migration.
 
-export interface LoginCredentials {
-  email: string;
-  password: string;
-}
+import { User, LoginCredentials, SignupCredentials } from '../types';
 
-export interface SignupCredentials {
-  email: string;
-  password: string;
-  name: string;
-  company?: string;
-  title?: string;
-}
+// Re-export types for backward compatibility
+export type { User, LoginCredentials, SignupCredentials };
 
-export interface User {
-  id: string;
-  email: string;
-  name: string;
-  company?: string;
-  title?: string;
-  isActive: boolean;
-  lastLoginAt?: string;
-  createdAt: string;
-}
-
+// Legacy AuthService - delegates to Neon Auth
 class AuthService {
+  // This service should not be used directly anymore
+  // Use the useNeon hook instead
   async login(credentials: LoginCredentials): Promise<User> {
-    try {
-      const response: LoginResponse = await post(API_ENDPOINTS.LOGIN, credentials);
-
-      if (response.success && response.token) {
-        // Store auth token and user data
-        authStorage.setToken(response.token);
-        authStorage.setUserData(response.user);
-
-        return response.user;
-      } else {
-        throw new Error(response.error || response.message || 'Login failed');
-      }
-    } catch (error) {
-      console.error('Login error:', error);
-      throw error;
-    }
+    throw new Error('AuthService.login is deprecated. Use useNeon hook instead.');
   }
 
   async signup(credentials: SignupCredentials): Promise<User> {
-    try {
-      const response = await post(API_ENDPOINTS.SIGNUP, credentials);
-
-      if (response.success && response.token) {
-        // Store auth token and user data
-        authStorage.setToken(response.token);
-        authStorage.setUserData(response.user);
-
-        return response.user;
-      } else {
-        throw new Error(response.error || 'Signup failed');
-      }
-    } catch (error) {
-      console.error('Signup error:', error);
-      throw error;
-    }
+    throw new Error('AuthService.signup is deprecated. Use useNeon hook instead.');
   }
 
   async logout(): Promise<void> {
-    try {
-      // Call logout endpoint to invalidate session
-      await post(API_ENDPOINTS.LOGOUT, {});
-    } catch (error) {
-      console.error('Logout error:', error);
-    } finally {
-      // Always clear local storage
-      authStorage.removeToken();
-    }
+    throw new Error('AuthService.logout is deprecated. Use useNeon hook instead.');
   }
 
   async refreshToken(): Promise<User | null> {
-    try {
-      const response = await post(API_ENDPOINTS.REFRESH_TOKEN, {});
-
-      if (response.success && response.token) {
-        authStorage.setToken(response.token);
-        authStorage.setUserData(response.user);
-        return response.user;
-      }
-
-      return null;
-    } catch (error) {
-      console.error('Token refresh error:', error);
-      // If refresh fails, clear the invalid token
-      authStorage.removeToken();
-      return null;
-    }
+    throw new Error('AuthService.refreshToken is deprecated. Use useNeon hook instead.');
   }
 
   checkSession(): User | null {
-    const token = authStorage.getToken();
-    const userData = authStorage.getUserData();
-
-    if (!token || !userData) {
-      return null;
-    }
-
-    // You could add token expiration checking here
-    // For now, just return the user data if token exists
-    return userData;
+    throw new Error('AuthService.checkSession is deprecated. Use useNeon hook instead.');
   }
 
   isAuthenticated(): boolean {
-    return !!authStorage.getToken() && !!authStorage.getUserData();
+    throw new Error('AuthService.isAuthenticated is deprecated. Use useNeon hook instead.');
   }
 
   getCurrentUser(): User | null {
-    return authStorage.getUserData();
+    throw new Error('AuthService.getCurrentUser is deprecated. Use useNeon hook instead.');
   }
 
-  // Password reset functionality
   async requestPasswordReset(email: string): Promise<void> {
-    try {
-      await post('/api/auth/request-password-reset', { email });
-    } catch (error) {
-      console.error('Password reset request error:', error);
-      throw error;
-    }
+    throw new Error('AuthService.requestPasswordReset is deprecated. Use useNeon hook instead.');
   }
 
   async resetPassword(token: string, newPassword: string): Promise<void> {
-    try {
-      await post('/api/auth/reset-password', { token, newPassword });
-    } catch (error) {
-      console.error('Password reset error:', error);
-      throw error;
-    }
+    throw new Error('AuthService.resetPassword is deprecated. Use useNeon hook instead.');
   }
 
-  // Change password
   async changePassword(currentPassword: string, newPassword: string): Promise<void> {
-    try {
-      await post('/api/auth/change-password', { currentPassword, newPassword });
-    } catch (error) {
-      console.error('Change password error:', error);
-      throw error;
-    }
+    throw new Error('AuthService.changePassword is deprecated. Use useNeon hook instead.');
   }
 }
 
 export const authService = new AuthService();
+
+// Export a deprecation warning
+export const DEPRECATION_WARNING = 'AuthService is deprecated. Please use the useNeon hook from providers/NeonProvider.tsx instead.';

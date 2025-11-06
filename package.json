@@ -3,7 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "dependencies": {
-    "@prisma/client": "^6.18.0",
+    "@neondatabase/serverless": "^1.0.2",
+    "@prisma/client": "^6.19.0",
+    "@stackframe/react": "^2.8.48",
     "@testing-library/dom": "^10.4.1",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.0",
@@ -39,7 +41,13 @@
     "api-auto": "node scripts/start-api.js",
     "build": "react-scripts build",
     "test": "react-scripts test",
-    "eject": "react-scripts eject"
+    "eject": "react-scripts eject",
+    "db:generate": "prisma generate",
+    "db:push": "prisma db push",
+    "db:migrate": "prisma migrate dev",
+    "db:studio": "prisma studio",
+    "db:reset": "prisma migrate reset",
+    "db:setup": "node scripts/setup-db.js"
   },
   "eslintConfig": {
     "extends": [

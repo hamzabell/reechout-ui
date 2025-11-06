@@ -1,0 +1,20 @@
+{
+  "name": "reechout-functions",
+  "version": "1.0.0",
+  "description": "Netlify functions for Reechout application",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "dependencies": {
+    "@prisma/client": "^6.19.0",
+    "prisma": "^6.18.0"
+  },
+  "keywords": [
+    "netlify",
+    "functions",
+    "serverless"
+  ],
+  "author": "Reechout Team",
+  "license": "MIT"
+}

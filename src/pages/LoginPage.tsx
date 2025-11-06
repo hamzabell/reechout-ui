@@ -1,161 +1,145 @@
-import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { useAuth } from '../hooks/useAuth';
-import { useToast } from '../hooks/useToast';
-import Button from '../components/Button';
+import React, { useState } from "react";
+import { useNavigate } from "react-router-dom";
+import LoginForm from "../components/auth/LoginForm";
+import SignupForm from "../components/auth/SignupForm";
+import PasswordResetForm from "../components/auth/PasswordResetForm";
+import AuthLayout from "../components/layout/AuthLayout";
+import { useNeon } from "../providers/NeonProvider";
 
 const LoginPage: React.FC = () => {
   const [isSignUp, setIsSignUp] = useState(false);
-  const [formData, setFormData] = useState({
-    name: '',
-    email: '',
-    password: ''
-  });
-  const [isLoading, setIsLoading] = useState(false);
+  const [showPasswordReset, setShowPasswordReset] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const { login, signup } = useAuth();
-  const { showToast } = useToast();
   const navigate = useNavigate();
+  const { login, resetPasswordRequest, authState } = useNeon();
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      [name]: value
-    }));
+  const handleLoginSuccess = () => {
+    navigate("/dashboard");
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsLoading(true);
-
-    try {
-      if (isSignUp) {
-        await signup({
-          name: formData.name,
-          email: formData.email,
-          password: formData.password
-        });
-        showToast('Account created successfully!', 'success');
-      } else {
-        await login({
-          email: formData.email,
-          password: formData.password
-        });
-        showToast('Welcome back!', 'success');
-      }
-      navigate('/dashboard');
-    } catch (error) {
-      showToast(error instanceof Error ? error.message : 'An error occurred', 'error');
-    } finally {
-      setIsLoading(false);
+  const handleSignupSuccess = () => {
+    // For signup, we'll let the form handle the navigation
+    // It will redirect to confirmation page if needed
+    if (!showPasswordReset) {
+      // If not showing password reset, navigate to confirmation or dashboard
+      navigate("/signup-confirmation");
     }
   };
 
-  const toggleMode = () => {
-    setIsSignUp(!isSignUp);
-    setFormData({ name: '', email: '', password: '' });
+  const handlePasswordResetSuccess = () => {
+    setShowPasswordReset(false);
+    setError(null);
   };
 
+  const handleModeToggle = () => {
+    setIsSignUp(!isSignUp);
+    setShowPasswordReset(false);
+    setError(null);
+  };
+
+  const handlePasswordReset = () => {
+    setShowPasswordReset(true);
+    setError(null);
+  };
+
+  const handlePasswordResetCancel = () => {
+    setShowPasswordReset(false);
+    setError(null);
+  };
+
+  const handlePasswordResetSubmit = async (data: { email: string }) => {
+    try {
+      setError(null);
+      await resetPasswordRequest(data.email);
+      handlePasswordResetSuccess();
+    } catch (err: any) {
+      setError(err.message || "Failed to send reset email");
+    }
+  };
+
+  const handleLoginSubmit = async (data: {
+    email: string;
+    password: string;
+  }) => {
+    try {
+      setError(null);
+      await login(data);
+      handleLoginSuccess();
+    } catch (err: any) {
+      console.error('Login error:', err);
+
+      // Handle different types of authentication errors
+      let errorMessage = "Invalid email or password";
+
+      // Check for common Stack Auth error codes and messages
+      if (err.code === 'INVALID_CREDENTIALS' || err.message?.includes('Invalid credentials') || err.message?.includes('Invalid email or password') || err.message?.includes('Wrong e-mail or password')) {
+        errorMessage = "Invalid email or password. Please check your credentials and try again.";
+      } else if (err.code === 'USER_NOT_FOUND' || err.message?.includes('User not found') || err.message?.includes('No user found')) {
+        errorMessage = "No account found with this email address.";
+      } else if (err.code === 'EMAIL_NOT_CONFIRMED' || err.message?.includes('email not confirmed') || err.message?.includes('Email verification required')) {
+        errorMessage = "Please confirm your email address before signing in. Check your inbox for a confirmation email.";
+      } else if (err.code === 'TOO_MANY_ATTEMPTS' || err.message?.includes('too many') || err.message?.includes('rate limit')) {
+        errorMessage = "Too many login attempts. Please try again later.";
+      } else if (err.code === 'SIGN_IN_FAILED') {
+        // Generic sign in failure from our neon.ts wrapper
+        errorMessage = err.message || "Sign in failed. Please try again.";
+      } else if (err.message) {
+        // Fallback to the error message if no specific code matches
+        errorMessage = err.message;
+      }
+
+      // Set error directly and ensure it persists
+      setError(errorMessage);
+      throw errorMessage;
+    }
+  };
+
+  // Clear error only when switching modes
+  React.useEffect(() => {
+    setError(null);
+  }, [isSignUp, showPasswordReset]);
+
   return (
-    <div className="screen bg-gradient-bg flex items-center justify-center px-6">
-      <div className="w-full max-w-md">
-        <div className="glass rounded-2xl p-8 shadow-glass">
-          {/* Back Button */}
-          <div className="mb-6">
-            <Link to="/" className="inline-flex items-center text-text-secondary hover:text-text-primary transition-colors">
-              <i className="fas fa-arrow-left mr-2" />
-              <span>Back to Home</span>
-            </Link>
-          </div>
-
-          {/* Header */}
-          <div className="text-center mb-8">
-            <div className="flex items-center justify-center space-x-2 mb-4">
-              <i className="fas fa-envelope text-primary text-3xl" />
-              <h1 className="text-3xl font-bold text-text-primary">Reechout</h1>
-            </div>
-            <p className="text-text-secondary">AI Cold Email Personalization</p>
-          </div>
-
-          {/* Form */}
-          <form onSubmit={handleSubmit} className="space-y-6">
-            {isSignUp && (
-              <div>
-                <label htmlFor="name" className="block text-sm font-medium text-text-primary mb-2">
-                  Full Name
-                </label>
-                <input
-                  type="text"
-                  id="name"
-                  name="name"
-                  value={formData.name}
-                  onChange={handleInputChange}
-                  required
-                  placeholder="Enter your full name"
-                  className="w-full px-4 py-3 bg-surface border border-border rounded-lg text-text-primary placeholder-text-muted focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all"
-                />
-              </div>
-            )}
-
-            <div>
-              <label htmlFor="email" className="block text-sm font-medium text-text-primary mb-2">
-                Email
-              </label>
-              <input
-                type="email"
-                id="email"
-                name="email"
-                value={formData.email}
-                onChange={handleInputChange}
-                required
-                placeholder="Enter your email"
-                className="w-full px-4 py-3 bg-surface border border-border rounded-lg text-text-primary placeholder-text-muted focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all"
-              />
-            </div>
-
-            <div>
-              <label htmlFor="password" className="block text-sm font-medium text-text-primary mb-2">
-                Password
-              </label>
-              <input
-                type="password"
-                id="password"
-                name="password"
-                value={formData.password}
-                onChange={handleInputChange}
-                required
-                placeholder={isSignUp ? "Create a password" : "Enter your password"}
-                className="w-full px-4 py-3 bg-surface border border-border rounded-lg text-text-primary placeholder-text-muted focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all"
-              />
-            </div>
-
-            <Button
-              type="submit"
-              loading={isLoading}
-              disabled={isLoading}
-              className="w-full py-3"
-              icon={<i className="fas fa-arrow-right" />}
-            >
-              {isSignUp ? 'Create Account' : 'Sign In'}
-            </Button>
-          </form>
-
-          {/* Toggle */}
-          <div className="mt-6 text-center">
-            <p className="text-text-secondary">
-              {isSignUp ? "Already have an account? " : "Don't have an account? "}
-              <button
-                onClick={toggleMode}
-                className="text-primary hover:text-primary-dark font-medium transition-colors"
-              >
-                {isSignUp ? 'Sign in' : 'Sign up'}
-              </button>
-            </p>
-          </div>
-        </div>
-      </div>
-    </div>
+    <AuthLayout
+      title={
+        showPasswordReset
+          ? "Reset Your Password"
+          : isSignUp
+            ? "Create Your Account"
+            : "Welcome Back"
+      }
+      subtitle={
+        showPasswordReset
+          ? "Enter your email address and we'll send you a link to reset your password"
+          : isSignUp
+            ? "Start personalizing your cold emails with AI"
+            : "Sign in to your account to continue"
+      }
+    >
+      {showPasswordReset ? (
+        <PasswordResetForm
+          onSubmit={handlePasswordResetSubmit}
+          onSuccess={handlePasswordResetSuccess}
+          onCancel={handlePasswordResetCancel}
+        />
+      ) : isSignUp ? (
+        <SignupForm
+          onSuccess={handleSignupSuccess}
+          onModeToggle={handleModeToggle}
+        />
+      ) : (
+        <LoginForm
+          onSubmit={handleLoginSubmit}
+          onSuccess={handleLoginSuccess}
+          onModeToggle={handleModeToggle}
+          onPasswordReset={handlePasswordReset}
+          loading={authState.loading}
+          error={error}
+          onError={() => setError(null)}
+        />
+      )}
+    </AuthLayout>
   );
 };
 

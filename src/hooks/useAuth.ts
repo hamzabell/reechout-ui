@@ -1,74 +1,24 @@
-import { useState, useEffect, useCallback } from 'react';
-import { AuthState } from '../types';
-import { authService, LoginCredentials, SignupCredentials } from '../services/authService';
+import { useNeon } from '../providers/NeonProvider';
+import { LoginCredentials, SignupCredentials } from '../types';
 
+// This hook now delegates to Neon provider for backward compatibility
+// Use useNeon directly for new code
 export const useAuth = () => {
-  const [authState, setAuthState] = useState<AuthState>({
-    isAuthenticated: false,
-    user: null,
-    loading: true
-  });
-
-  useEffect(() => {
-    const checkAuth = () => {
-      const user = authService.checkSession();
-      setAuthState({
-        isAuthenticated: !!user,
-        user,
-        loading: false
-      });
-    };
-
-    checkAuth();
-  }, []);
-
-  const login = useCallback(async (credentials: LoginCredentials) => {
-    setAuthState(prev => ({ ...prev, loading: true }));
-    
-    try {
-      const user = await authService.login(credentials);
-      setAuthState({
-        isAuthenticated: true,
-        user,
-        loading: false
-      });
-      return user;
-    } catch (error) {
-      setAuthState(prev => ({ ...prev, loading: false }));
-      throw error;
-    }
-  }, []);
-
-  const signup = useCallback(async (credentials: SignupCredentials) => {
-    setAuthState(prev => ({ ...prev, loading: true }));
-    
-    try {
-      const user = await authService.signup(credentials);
-      setAuthState({
-        isAuthenticated: true,
-        user,
-        loading: false
-      });
-      return user;
-    } catch (error) {
-      setAuthState(prev => ({ ...prev, loading: false }));
-      throw error;
-    }
-  }, []);
-
-  const logout = useCallback(() => {
-    authService.logout();
-    setAuthState({
-      isAuthenticated: false,
-      user: null,
-      loading: false
-    });
-  }, []);
-
+  const { authState, login, signup, logout } = useNeon();
+  
   return {
     ...authState,
-    login,
-    signup,
+    login: async (credentials: LoginCredentials) => {
+      return await login(credentials);
+    },
+    signup: async (credentials: SignupCredentials) => {
+      const result = await signup(credentials);
+      // For backward compatibility, if email confirmation is needed, throw an error
+      if (result.needsConfirmation) {
+        throw new Error('Please check your email to confirm your account.');
+      }
+      return result.user;
+    },
     logout
   };
 };

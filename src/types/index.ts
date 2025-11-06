@@ -1,5 +1,6 @@
 export interface User {
   id: string;
+  neonId: string;
   name: string;
   email: string;
   company?: string;
@@ -7,6 +8,7 @@ export interface User {
   isActive: boolean;
   lastLoginAt?: string;
   createdAt: string;
+  emailConfirmed?: boolean;
 }
 
 export interface LoginCredentials {
