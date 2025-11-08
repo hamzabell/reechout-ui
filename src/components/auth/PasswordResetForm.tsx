@@ -209,7 +209,7 @@ const PasswordResetForm: React.FC<PasswordResetFormProps> = ({
           Remember your password?{" "}
           <button
             type="button"
-            onClick={onBackToLogin}
+            onClick={onCancel}
             className="text-blue-600 hover:text-blue-500 font-medium"
             disabled={loading}
           >

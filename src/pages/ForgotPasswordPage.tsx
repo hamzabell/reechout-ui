@@ -26,6 +26,7 @@ const ForgotPasswordPage: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setStatus('loading');
 
     const emailError = validateEmail(email);
     if (emailError) {
@@ -33,7 +34,6 @@ const ForgotPasswordPage: React.FC = () => {
       return;
     }
 
-    setStatus('loading');
     setMessage('');
 
     try {
