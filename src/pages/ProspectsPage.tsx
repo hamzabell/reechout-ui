@@ -12,6 +12,8 @@ import ModalWrapper from '../components/ModalWrapper';
 import UpdateStatusModal from '../components/UpdateStatusModal';
 import { post } from '../services/apiService';
 import { parseCSV, validateProspects, generateCSVTemplate } from '../utils/csvParser';
+import { useCampaigns } from '../hooks/useCampaigns';
+import { Campaign } from '../types';
 
 const ProspectsPage: React.FC = () => {
   const navigate = useNavigate();
@@ -28,9 +30,7 @@ const ProspectsPage: React.FC = () => {
     invalidateQueries: ['/prospects-list-prospects']
   });
 
-  // TODO: Re-enable when campaigns/advanced endpoint is fixed
-  // const { campaigns = [] } = useCampaigns({ status: 'draft' });
-  const campaigns: any[] = []; // Temporary: Using empty array until campaigns endpoint is fixed
+  const { campaigns = [] } = useCampaigns();
 
   // Local UI state
   const [searchQuery, setSearchQuery] = useState('');
@@ -224,7 +224,7 @@ const ProspectsPage: React.FC = () => {
 
     try {
       // Check if sequence has AI personalization enabled
-      const sequence = campaigns.find(c => c.id === selectedCampaign);
+      const sequence: Campaign | undefined = campaigns.find((c: Campaign) => c.id === selectedCampaign);
       const hasAIPersonalization = sequence?.settings?.personalizationLevel === 'ai-powered' ||
                                    sequence?.settings?.personalizationLevel === 'advanced';
 
@@ -236,56 +236,70 @@ const ProspectsPage: React.FC = () => {
           })
         : [];
 
-      // Add prospects to sequence
-      const addPromises = selectedProspects.map(prospectId =>
-        fetch(`/api/campaigns/${selectedCampaign}/prospects`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ prospectIds: [prospectId] })
-        })
-      );
-
-      await Promise.all(addPromises);
-
-      // Trigger research for prospects without cached data if sequence has AI personalization
-      if (hasAIPersonalization && prospectsNeedingResearch.length > 0) {
-        showToast(
-          `Added ${selectedProspects.length} prospects to sequence. Starting research for ${prospectsNeedingResearch.length} prospects without cached data...`,
-          'info'
-        );
-
-        // Trigger research in background
-        const researchPromises = prospectsNeedingResearch.map(async (prospectId) => {
-          const prospect = prospects.find(p => p.id === prospectId);
-          if (prospect) {
-            try {
-              await fetch('/api/ai/research-prospect', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  prospectId: prospect.id,
-                  name: prospect.name,
-                  company: prospect.company,
-                  website: prospect.website,
-                })
-              });
-            } catch (error) {
-              console.error(`Research failed for prospect ${prospect.id}:`, error);
-            }
-          }
-        });
-
-        // Don't wait for research to complete - run in background
-        Promise.allSettled(researchPromises).then(() => {
-          showToast('Research completed for all prospects!', 'success');
-        });
-      } else {
-        showToast(`Added ${selectedProspects.length} prospects to sequence successfully!`, 'success');
-      }
-
+      // Close modal immediately and clear UI state
       setShowAddToCampaignModal(false);
       setSelectedCampaign('');
       clearSelection();
+
+      // Show loading message
+      showToast(`Adding ${selectedProspects.length} prospects to sequence...`, 'info');
+
+      try {
+        // Add prospects to sequence using the existing API service
+        const response = await post('/campaigns-add-prospects', {
+          campaignId: selectedCampaign,
+          prospectIds: selectedProspects
+        });
+
+        if (!response.success && response.status !== 'partial_success') {
+          throw new Error(response.message || 'Failed to add prospects to sequence');
+        }
+
+        // Handle different response scenarios
+        if (response.status === 'partial_success') {
+          // Some prospects added, some were duplicates
+          showToast(response.message, 'warning');
+        } else if (response.added > 0) {
+          // All prospects added successfully
+          showToast(response.message, 'success');
+        }
+
+        // Trigger research for prospects without cached data if sequence has AI personalization
+        if (hasAIPersonalization && prospectsNeedingResearch.length > 0) {
+          showToast(
+            `Starting research for ${prospectsNeedingResearch.length} prospects without cached data...`,
+            'info'
+          );
+
+          // Trigger research in background
+          const researchPromises = prospectsNeedingResearch.map(async (prospectId) => {
+            const prospect = prospects.find(p => p.id === prospectId);
+            if (prospect) {
+              try {
+                await fetch('/api/ai/research-prospect', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    prospectId: prospect.id,
+                    name: prospect.name,
+                    company: prospect.company,
+                    website: prospect.website,
+                  })
+                });
+              } catch (error) {
+                console.error(`Research failed for prospect ${prospect.id}:`, error);
+              }
+            }
+          });
+
+          // Don't wait for research to complete - run in background
+          Promise.allSettled(researchPromises).then(() => {
+            showToast('Research completed for all prospects!', 'success');
+          });
+        }
+      } catch (error) {
+        showToast(error instanceof Error ? error.message : 'Failed to add prospects to campaign', 'error');
+      }
     } catch (error) {
       showToast(error instanceof Error ? error.message : 'Failed to add prospects to campaign', 'error');
     }
@@ -1034,7 +1048,7 @@ const ProspectsPage: React.FC = () => {
                 {campaigns.length === 0 ? (
                   <option value="" disabled>No sequences available</option>
                 ) : (
-                  campaigns.map((campaign) => (
+                  campaigns.map((campaign: Campaign) => (
                     <option key={campaign.id} value={campaign.id}>
                       {campaign.name}
                     </option>

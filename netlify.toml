@@ -16,6 +16,27 @@
   node_bundler = "esbuild"
 
 
+# API Routes for campaigns
+[[redirects]]
+  from = "/api/campaigns/:campaignId/prospects"
+  to = "/.netlify/functions/campaigns-add-prospects-to-sequence"
+  status = 200
+
+[[redirects]]
+  from = "/api/campaigns"
+  to = "/.netlify/functions/campaigns-list-campaigns"
+  status = 200
+
+[[redirects]]
+  from = "/api/campaigns/advanced"
+  to = "/.netlify/functions/campaigns-advanced"
+  status = 200
+
+[[redirects]]
+  from = "/api/campaigns/debug"
+  to = "/.netlify/functions/campaigns-debug"
+  status = 200
+
 # Redirects for React Router
 [[redirects]]
   from = "/*"
