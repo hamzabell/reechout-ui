@@ -69,6 +69,13 @@ export const userProfileApi = {
     });
     return data.userProfile;
   },
+
+  confirmEmail: async (neonUserId: string) => {
+    const data = await apiRequest("/user-confirm-email", {
+      body: JSON.stringify({ neonUserId }),
+    });
+    return data.userProfile;
+  },
 };
 
 // Utility function to get API base URL

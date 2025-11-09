@@ -3,11 +3,16 @@ import { userProfileApi } from "./api";
 // Client-side database operations using API calls
 // This ensures Prisma is never imported in browser environment
 
-export const createUserProfile = async (neonUser: any) => {
-  console.log("Creating profile for neon user via API:", neonUser);
+export const createUserProfile = async (neonUser: any, formData?: { name?: string; company?: string; title?: string }) => {
+  console.log("Creating profile for neon user via API:", neonUser, "with form data:", formData);
 
   try {
-    return await userProfileApi.create(neonUser);
+    // Add form data to the neonUser object before sending to API
+    const userWithFormData = {
+      ...neonUser,
+      formData: formData || {}
+    };
+    return await userProfileApi.create(userWithFormData);
   } catch (error: any) {
     console.error("API error creating user profile:", error);
     throw error;
@@ -61,7 +66,10 @@ export const updateLastLogin = async (neonId: string) => {
 export const confirmUserEmail = async (neonId: string) => {
   console.log("Confirming email via API for neonId:", neonId);
 
-  // For now, we don't have an email confirmation API, but we could add it if needed
-  console.warn("confirmUserEmail not implemented via API yet");
-  throw new Error("Email confirmation not implemented via API yet");
+  try {
+    return await userProfileApi.confirmEmail(neonId);
+  } catch (error: any) {
+    console.error("API error confirming email:", error);
+    throw error;
+  }
 };

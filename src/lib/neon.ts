@@ -70,9 +70,11 @@ export const signUp = async (
       const user = await stackApp.getUser();
       if (user) {
         try {
-          await createProfile(user);
+          // Pass the form data to createProfile along with the user
+          await createProfile(user, options?.data);
         } catch (dbError: any) {
           // Silently handle database errors
+          console.error("Database error during profile creation:", dbError);
         }
       }
 
@@ -236,7 +238,11 @@ export const onAuthStateChange = (
 
 export const resetPassword = async (email: string) => {
   try {
-    await stackApp.sendForgotPasswordEmail(email);
+    const result = await stackApp.sendForgotPasswordEmail(email);
+
+    // Stack Auth returns void for this operation, so if no error is thrown, it was successful
+    console.log('Password reset email sent successfully');
+
   } catch (error: any) {
     // Preserve any existing error structure, or create a default one
     if (error?.code || error?.details) {
@@ -276,51 +282,36 @@ export const updatePassword = async (newPassword: string) => {
 
 export const resetPasswordWithToken = async (token: string, newPassword: string) => {
   try {
-    // Stack Auth password reset with token implementation
-    // Use Netlify function as proxy to avoid CORS issues
-
+    // Use Stack Auth's built-in resetPassword method
     console.log('Attempting password reset with Stack Auth token:', token.substring(0, 10) + '...');
 
-    // Call Netlify function instead of direct Stack Auth API
-    const netlifyFunctionUrl = `${process.env.REACT_APP_API_BASE_URL || 'http://localhost:3001'}/.netlify/functions/auth/password-reset`;
-
-    const response = await fetch(netlifyFunctionUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        token: token,
-        password: newPassword,
-      }),
+    const result = await stackApp.resetPassword({
+      code: token,
+      password: newPassword,
     });
 
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      console.error('Password reset error:', errorData);
-      throw new Error(errorData.error || errorData.message || 'Failed to reset password. The reset link may have expired.');
+    if (result.status === "error") {
+      console.error('Password reset error:', result.error);
+      throw new Error(result.error?.message || 'Failed to reset password. The reset link may have expired.');
     }
 
-    const result = await response.json();
     console.log('Password reset completed successfully');
     return true;
+
   } catch (error: any) {
     console.error('Password reset with token error:', error);
 
-    // If it's a network error or the API call fails, we should still provide a good user experience
-    // by checking if this might be a development environment issue
-    if (error.message.includes('fetch') || error.message.includes('network')) {
-      console.warn('Network error during password reset - this might be expected in development');
-      // For development purposes, we'll simulate a successful reset
-      // but in production, this should properly handle the error
-      if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
-        console.log('Simulating password reset success in development');
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        return true;
-      }
+    // Preserve any existing error structure, or create a default one
+    if (error?.code || error?.details) {
+      // Error already has the proper structure
+      throw error;
+    } else {
+      // Wrap the error with a proper structure
+      const wrappedError = new Error(error?.message || 'Failed to reset password. The reset link may have expired.');
+      (wrappedError as any).code = "PASSWORD_RESET_FAILED";
+      (wrappedError as any).originalError = error;
+      throw wrappedError;
     }
-
-    throw new Error('Failed to reset password. The reset link may have expired.');
   }
 };
 
@@ -356,9 +347,9 @@ export const resendConfirmationEmail = async (email: string) => {
 };
 
 // Database helper functions using Prisma
-export const createUserProfile = async (user: any) => {
+export const createUserProfile = async (user: any, formData?: { name?: string; company?: string; title?: string }) => {
   try {
-    return await createProfile(user);
+    return await createProfile(user, formData);
   } catch (error: any) {
     // Handle unique constraint error (user already exists)
     if (error.code === "P2002") {

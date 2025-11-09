@@ -22,6 +22,7 @@ import {
   createUserProfile,
   getUserProfile,
   updateLastLogin,
+  confirmUserEmail,
 } from "../lib/prisma";
 
 interface NeonContextType {
@@ -91,6 +92,23 @@ export const NeonProvider: React.FC<NeonProviderProps> = ({ children }) => {
           await updateLastLogin(neonUser.id);
         } catch (error) {
           console.warn("Failed to update last login:", error);
+        }
+
+        // Sync email confirmation status if there's a mismatch
+        const stackAuthEmailVerified = neonUser.emailVerified || false;
+        if (stackAuthEmailVerified !== userProfile.emailConfirmed) {
+          console.log(`Email confirmation status mismatch. Stack Auth: ${stackAuthEmailVerified}, Database: ${userProfile.emailConfirmed}`);
+
+          if (stackAuthEmailVerified) {
+            try {
+              // Update database to match Stack Auth's verified status
+              await confirmUserEmail(neonUser.id);
+              console.log("Synced email confirmation status to database");
+              userProfile.emailConfirmed = true;
+            } catch (error) {
+              console.warn("Failed to sync email confirmation status:", error);
+            }
+          }
         }
       }
 

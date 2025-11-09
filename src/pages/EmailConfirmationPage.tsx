@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
-import { updateUserEmailConfirmation } from '../lib/neon';
+import { stackApp, updateUserEmailConfirmation } from '../lib/neon';
 
 const EmailConfirmationPage: React.FC = () => {
   const [searchParams] = useSearchParams();
@@ -10,39 +10,73 @@ const EmailConfirmationPage: React.FC = () => {
 
   useEffect(() => {
     const confirmEmail = async () => {
-      const accessToken = searchParams.get('access_token');
-      const refreshToken = searchParams.get('refresh_token');
+      const code = searchParams.get('code');
+      const error = searchParams.get('error');
+      const errorDescription = searchParams.get('error_description');
 
-      if (!accessToken || !refreshToken) {
+      // If there's an error in the URL, show it immediately
+      if (error) {
+        setStatus('error');
+        setMessage(`Email confirmation failed: ${errorDescription || error}`);
+        return;
+      }
+
+      if (!code) {
         setStatus('error');
         setMessage('Invalid confirmation link. Please try again or contact support.');
         return;
       }
 
       try {
-        // TODO: Replace with actual Stack Auth session handling
-        // For now, just mark as successful since this is a mock implementation
-        console.log('Mock email confirmation with tokens:', { accessToken, refreshToken });
+        setStatus('loading');
+        setMessage('Confirming your email...');
 
-        // Update email confirmation status in database
-        try {
-          // Mock user ID for now - replace with actual user ID from Stack Auth
-          await updateUserEmailConfirmation('mock-user-id');
-        } catch (dbError) {
-          console.warn('Failed to update email confirmation in database:', dbError);
-          // Don't fail the whole process if database update fails
+        // Stack Auth processes the verification code automatically
+        // Check if verification was successful by getting the user
+        const user = await stackApp.getUser();
+
+        console.log('Stack Auth user after email verification attempt:', user);
+
+        if (user) {
+          // User is authenticated - verification successful
+          console.log('Email verification successful for user:', user.id);
+
+          // Update email confirmation status in database
+          try {
+            await updateUserEmailConfirmation(user.id);
+            console.log('Email confirmation updated in database for user:', user.id);
+          } catch (dbError) {
+            console.warn('Failed to update email confirmation in database:', dbError);
+            // Don't fail the whole process if database update fails
+            // Stack Auth has already verified the email
+          }
+
+          setStatus('success');
+          setMessage('Email confirmed successfully! You are now signed in.');
+
+          // Redirect to dashboard after 2 seconds
+          setTimeout(() => {
+            navigate('/dashboard');
+          }, 2000);
+        } else {
+          // Email verification completed but user needs to sign in
+          // This can happen if verification succeeded but no active session was created
+          setStatus('success');
+          setMessage('Email confirmed successfully! You can now sign in with your credentials.');
+
+          // Redirect to login after 3 seconds
+          setTimeout(() => {
+            navigate('/login');
+          }, 3000);
         }
-
-        setStatus('success');
-        setMessage('Email confirmed successfully! You can now log in to your account.');
-        
-        // Redirect to login after 3 seconds
-        setTimeout(() => {
-          navigate('/login');
-        }, 3000);
       } catch (error: any) {
+        console.error('Email confirmation error:', error);
+
         setStatus('error');
-        setMessage(error.message || 'Failed to confirm email. Please try again.');
+        setMessage(
+          error.message ||
+          'Failed to confirm email. The confirmation link may have expired or already been used. Please try signing in or request a new confirmation email.'
+        );
       }
     };
 

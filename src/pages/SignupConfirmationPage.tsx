@@ -1,9 +1,11 @@
 import React from "react";
 import { useNavigate } from "react-router-dom";
 import Button from "../components/Button";
+import { useNeon } from "../providers/NeonProvider";
 
 const SignupConfirmationPage: React.FC = () => {
   const navigate = useNavigate();
+  const { logout } = useNeon();
 
   return (
     <div className="screen bg-gradient-bg flex items-center justify-center px-6">
@@ -29,7 +31,10 @@ const SignupConfirmationPage: React.FC = () => {
 
           {/* Action Button */}
           <Button
-            onClick={() => navigate("/login")}
+            onClick={async () => {
+              await logout();
+              navigate("/login");
+            }}
             className="w-full py-3"
             icon={<i className="fas fa-sign-in-alt" />}
           >
