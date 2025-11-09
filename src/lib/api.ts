@@ -63,6 +63,13 @@ export const userProfileApi = {
     return data.userProfile;
   },
 
+  update: async (neonUserId: string, updates: any) => {
+    const data = await apiRequest("/user-profile-update", {
+      body: JSON.stringify({ neonUserId, updates }),
+    });
+    return data.userProfile;
+  },
+
   updateLastLogin: async (neonUserId: string) => {
     const data = await apiRequest("/user-profile-update-last-login", {
       body: JSON.stringify({ neonUserId }),

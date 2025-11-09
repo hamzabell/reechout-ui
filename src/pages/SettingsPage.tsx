@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../hooks/useAuth';
+import { useNeon } from '../providers/NeonProvider';
 import { useToast } from '../hooks/useToast';
 import Button from '../components/Button';
 
@@ -14,6 +15,7 @@ interface UserSettings {
 
 const SettingsPage: React.FC = () => {
   const { user } = useAuth();
+  const { updateUserProfile } = useNeon();
   const { showToast } = useToast();
 
   const [activeTab, setActiveTab] = useState<'profile' | 'notifications' | 'security'>('profile');
@@ -27,22 +29,45 @@ const SettingsPage: React.FC = () => {
     emailNotifications: true,
   });
 
-  const [passwordData, setPasswordData] = useState({
-    currentPassword: '',
-    newPassword: '',
-    confirmPassword: '',
-  });
+  
 
   const [connectingEmail, setConnectingEmail] = useState(false);
 
-  const handleSaveSettings = async (section: string) => {
+  // Sync settings with current user data (important for optimistic updates)
+  useEffect(() => {
+    if (user) {
+      setSettings(prev => ({
+        ...prev,
+        name: user.name || prev.name,
+        email: user.email || prev.email,
+        company: user.company || prev.company,
+        title: user.title || prev.title,
+      }));
+    }
+  }, [user]);
+
+  const handleSaveProfile = async () => {
+    if (!user) {
+      showToast('User not authenticated', 'error');
+      return;
+    }
+
     setSaving(true);
     try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      showToast(`${section} settings saved successfully!`, 'success');
-    } catch (error) {
-      showToast('Failed to save settings', 'error');
+      // Optimistic update: show immediate feedback
+      showToast('Updating profile...', 'info');
+      
+      // Call the API with optimistic updates built into the provider
+      await updateUserProfile({
+        name: settings.name,
+        company: settings.company,
+        title: settings.title,
+      });
+      
+      showToast('Profile updated successfully!', 'success');
+    } catch (error: any) {
+      console.error('Error updating profile:', error);
+      showToast('Failed to update profile. Please try again.', 'error');
     } finally {
       setSaving(false);
     }
@@ -72,32 +97,6 @@ const SettingsPage: React.FC = () => {
       showToast('Email account disconnected successfully', 'success');
     } catch (error) {
       showToast('Failed to disconnect email account', 'error');
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const handlePasswordChange = async (e: React.FormEvent) => {
-    e.preventDefault();
-
-    if (passwordData.newPassword !== passwordData.confirmPassword) {
-      showToast('Passwords do not match', 'error');
-      return;
-    }
-
-    if (passwordData.newPassword.length < 8) {
-      showToast('Password must be at least 8 characters', 'error');
-      return;
-    }
-
-    setSaving(true);
-    try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      showToast('Password changed successfully!', 'success');
-      setPasswordData({ currentPassword: '', newPassword: '', confirmPassword: '' });
-    } catch (error) {
-      showToast('Failed to change password', 'error');
     } finally {
       setSaving(false);
     }
@@ -163,9 +162,14 @@ const SettingsPage: React.FC = () => {
                     <input
                       type="email"
                       value={settings.email}
-                      onChange={(e) => setSettings({ ...settings, email: e.target.value })}
-                      className="w-full px-4 py-2 bg-bg-secondary border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
+                      readOnly
+                      disabled
+                      className="w-full px-4 py-2 bg-bg-muted border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary cursor-not-allowed opacity-60"
+                      title="Email address cannot be changed"
                     />
+                    <p className="text-xs text-text-secondary mt-1">
+                      Email address is managed by your authentication provider
+                    </p>
                   </div>
 
                   <div>
@@ -195,7 +199,7 @@ const SettingsPage: React.FC = () => {
 
                 <div className="flex justify-end">
                   <Button
-                    onClick={() => handleSaveSettings('Profile')}
+                    onClick={handleSaveProfile}
                     loading={saving}
                   >
                     Save Profile
@@ -255,8 +259,6 @@ const SettingsPage: React.FC = () => {
             </div>
           )}
 
-          
-
           {/* Notifications */}
           {activeTab === 'notifications' && (
             <div className="bg-surface rounded-xl border border-border p-6">
@@ -286,7 +288,9 @@ const SettingsPage: React.FC = () => {
 
                 <div className="flex justify-end">
                   <Button
-                    onClick={() => handleSaveSettings('Notifications')}
+                    onClick={() => {
+                      showToast('Notification settings saved successfully!', 'success');
+                    }}
                     loading={saving}
                   >
                     Save Notification Settings
@@ -299,57 +303,6 @@ const SettingsPage: React.FC = () => {
           {/* Security */}
           {activeTab === 'security' && (
             <div className="space-y-6">
-              <div className="bg-surface rounded-xl border border-border p-6">
-                <h3 className="text-lg font-semibold text-text-primary mb-6">Change Password</h3>
-
-                <form onSubmit={handlePasswordChange} className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium text-text-primary mb-2">
-                      Current Password
-                    </label>
-                    <input
-                      type="password"
-                      value={passwordData.currentPassword}
-                      onChange={(e) => setPasswordData({ ...passwordData, currentPassword: e.target.value })}
-                      className="w-full px-4 py-2 bg-bg-secondary border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
-                      required
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-text-primary mb-2">
-                      New Password
-                    </label>
-                    <input
-                      type="password"
-                      value={passwordData.newPassword}
-                      onChange={(e) => setPasswordData({ ...passwordData, newPassword: e.target.value })}
-                      className="w-full px-4 py-2 bg-bg-secondary border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
-                      required
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-text-primary mb-2">
-                      Confirm New Password
-                    </label>
-                    <input
-                      type="password"
-                      value={passwordData.confirmPassword}
-                      onChange={(e) => setPasswordData({ ...passwordData, confirmPassword: e.target.value })}
-                      className="w-full px-4 py-2 bg-bg-secondary border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
-                      required
-                    />
-                  </div>
-
-                  <div className="flex justify-end">
-                    <Button type="submit" loading={saving}>
-                      Change Password
-                    </Button>
-                  </div>
-                </form>
-              </div>
-
               <div className="bg-surface rounded-xl border border-border p-6">
                 <h3 className="text-lg font-semibold text-text-primary mb-4">Account Actions</h3>
 

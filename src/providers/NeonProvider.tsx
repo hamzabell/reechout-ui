@@ -21,6 +21,7 @@ import {
 import {
   createUserProfile,
   getUserProfile,
+  updateUserProfile,
   updateLastLogin,
   confirmUserEmail,
 } from "../lib/prisma";
@@ -36,6 +37,7 @@ interface NeonContextType {
   confirmPasswordReset: (newPassword: string) => Promise<void>;
   refreshUser: () => Promise<void>;
   resendConfirmationEmail: (email: string) => Promise<void>;
+  updateUserProfile: (updates: Partial<User>) => Promise<User>;
 }
 
 const NeonContext = createContext<NeonContextType | undefined>(undefined);
@@ -382,6 +384,63 @@ export const NeonProvider: React.FC<NeonProviderProps> = ({ children }) => {
     await resendConfirmationEmail(email);
   };
 
+  const updateUserProfileHandler = async (updates: Partial<User>): Promise<User> => {
+    if (!authState.user?.neonId) {
+      throw new Error("User not authenticated");
+    }
+
+    const originalUser = authState.user;
+    
+    // Optimistic update: update UI immediately
+    const updatedUser = { ...originalUser, ...updates };
+    updateAuthState(prev => ({ ...prev, user: updatedUser }));
+
+    // Store updated user data in localStorage for API service access
+    if (updatedUser && typeof window !== 'undefined') {
+      localStorage.setItem('user_data', JSON.stringify(updatedUser));
+    }
+
+    try {
+      // Call the API to update the profile
+      await updateUserProfile(authState.user.neonId, updates);
+      
+      // Update was successful, refresh user data to ensure consistency
+      try {
+        const neonUser = await getCurrentUser();
+        if (neonUser) {
+          const refreshedUser = await mapNeonUserToAppUser(neonUser);
+          if (refreshedUser) {
+            updateAuthState(prev => ({ ...prev, user: refreshedUser }));
+            
+            // Store refreshed user data in localStorage
+            if (typeof window !== 'undefined') {
+              localStorage.setItem('user_data', JSON.stringify(refreshedUser));
+            }
+            
+            return refreshedUser;
+          }
+        }
+      } catch (refreshError) {
+        console.warn("Failed to refresh user data after update, using optimistic update:", refreshError);
+        // If refresh fails, we still have the optimistic update, so continue with that
+      }
+      
+      return updatedUser;
+    } catch (error: any) {
+      console.error("Error updating user profile:", error);
+      
+      // Revert to original user data on error
+      updateAuthState(prev => ({ ...prev, user: originalUser }));
+      
+      // Restore original user data in localStorage
+      if (originalUser && typeof window !== 'undefined') {
+        localStorage.setItem('user_data', JSON.stringify(originalUser));
+      }
+      
+      throw error;
+    }
+  };
+
   useEffect(() => {
     initializeAuth();
 
@@ -429,6 +488,7 @@ export const NeonProvider: React.FC<NeonProviderProps> = ({ children }) => {
     confirmPasswordReset,
     refreshUser,
     resendConfirmationEmail: resendConfirmationEmailHandler,
+    updateUserProfile: updateUserProfileHandler,
   };
 
   return <NeonContext.Provider value={value}>{children}</NeonContext.Provider>;

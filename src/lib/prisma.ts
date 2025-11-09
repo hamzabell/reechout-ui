@@ -45,9 +45,13 @@ export const updateUserProfile = async (neonId: string, updates: any) => {
     updates,
   );
 
-  // For now, we don't have a general update API, but we could add it if needed
-  console.warn("updateUserProfile not implemented via API yet");
-  throw new Error("Profile updates not implemented via API yet");
+  try {
+    console.log("Calling real API for profile update");
+    return await userProfileApi.update(neonId, updates);
+  } catch (error: any) {
+    console.error("API error updating user profile:", error);
+    throw error;
+  }
 };
 
 export const updateLastLogin = async (neonId: string) => {
