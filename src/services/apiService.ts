@@ -37,7 +37,8 @@ async function apiRequest(endpoint: string, options: RequestInit = {}): Promise<
                            endpoint.startsWith('/templates') ||
                            endpoint.startsWith('/password-') ||
                            endpoint.startsWith('/campaigns/') ||
-                           endpoint.startsWith('/campaigns-');
+                           endpoint.startsWith('/campaigns-') ||
+                           endpoint.startsWith('/overview-');
 
   // Convert /campaigns/advanced to /campaigns-advanced for Netlify function naming
   let functionEndpoint = endpoint.replace('/campaigns/advanced', '/campaigns-advanced');
@@ -127,9 +128,9 @@ export async function get(endpoint: string, params?: Record<string, any>): Promi
 
 // Generic POST request
 export async function post(endpoint: string, data: any): Promise<any> {
-  // Add userId to data for campaigns endpoints
+  // Add userId to data for campaigns and overview endpoints
   const userId = getUserId();
-  if (userId && (endpoint.includes('/campaigns') || endpoint.includes('/user-'))) {
+  if (userId && (endpoint.includes('/campaigns') || endpoint.includes('/user-') || endpoint.includes('/overview-'))) {
     data = { ...data, userId };
   }
 
@@ -214,6 +215,11 @@ export const API_ENDPOINTS = {
   CREATE_TASK: '/tasks',
   UPDATE_TASK: '/tasks',
   DELETE_TASK: '/tasks',
+
+  // Overview
+  GET_STATS: '/overview-get-stats',
+  GET_RECENT_CAMPAIGNS: '/overview-get-recent-campaigns',
+  GET_RECENT_PROSPECTS: '/overview-get-recent-prospects',
 } as const;
 
 // Auth token management

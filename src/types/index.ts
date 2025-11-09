@@ -307,3 +307,36 @@ export interface BulkApprovalRequest {
 }
 
 export type TabType = 'overview' | 'campaigns' | 'prospects' | 'templates' | 'tasks' | 'settings';
+
+// Overview Stats Types
+export interface OverviewStats {
+  totalEmailsSent: number;
+  totalReplyRate: number;
+  activeCampaigns: number;
+  totalProspects: number;
+  monthlyChange: {
+    emailsSent: number;
+    replyRate: number;
+    campaigns: number;
+    prospects: number;
+  };
+  period: string;
+}
+
+export interface RecentProspect {
+  id: string;
+  name: string;
+  email: string;
+  company?: string;
+  title?: string;
+  status: ProspectStatus;
+  createdAt: string;
+  source?: string;
+  tags: string[];
+}
+
+export interface OverviewData {
+  stats: OverviewStats;
+  recentCampaigns: Campaign[];
+  recentProspects: RecentProspect[];
+}
