@@ -52,11 +52,20 @@ interface NeonProviderProps {
 }
 
 export const NeonProvider: React.FC<NeonProviderProps> = ({ children }) => {
+  // Initialize auth state - don't restore from localStorage initially
+  // Let Stack Auth determine the actual session state
   const [authState, setAuthState] = useState<AuthState>({
     isAuthenticated: false,
     user: null,
     loading: true,
   });
+
+  // Simple state update function
+  const updateAuthState = (newState: AuthState | ((prev: AuthState) => AuthState)) => {
+    setAuthState((prev) => {
+      return typeof newState === 'function' ? newState(prev) : newState;
+    });
+  };
 
   const mapNeonUserToAppUser = async (neonUser: any): Promise<User | null> => {
     if (!neonUser) {
@@ -98,8 +107,8 @@ export const NeonProvider: React.FC<NeonProviderProps> = ({ children }) => {
         company: userProfile.company || undefined,
         title: userProfile.title || undefined,
         isActive: userProfile.isActive,
-        lastLoginAt: userProfile.lastLoginAt?.toISOString() || undefined,
-        createdAt: userProfile.createdAt.toISOString(),
+        lastLoginAt: userProfile.lastLoginAt || undefined,
+        createdAt: userProfile.createdAt,
         emailConfirmed: neonUser.emailVerified || false,
       };
 
@@ -130,15 +139,19 @@ export const NeonProvider: React.FC<NeonProviderProps> = ({ children }) => {
       console.log("Current user from getCurrentUser:", neonUser);
 
       if (neonUser) {
+        // Stack Auth has a valid session, get the user data
         const user = await mapNeonUserToAppUser(neonUser);
-        setAuthState({
+        console.log("Mapped user:", user);
+
+        updateAuthState({
           isAuthenticated: !!user,
           user,
           loading: false,
         });
       } else {
+        // No Stack Auth session, set to unauthenticated
         console.log("No current user found");
-        setAuthState({
+        updateAuthState({
           isAuthenticated: false,
           user: null,
           loading: false,
@@ -157,7 +170,7 @@ export const NeonProvider: React.FC<NeonProviderProps> = ({ children }) => {
         console.error("Unexpected auth error:", error);
       }
 
-      setAuthState({
+      updateAuthState({
         isAuthenticated: false,
         user: null,
         loading: false,
@@ -173,7 +186,7 @@ export const NeonProvider: React.FC<NeonProviderProps> = ({ children }) => {
       const user = await mapNeonUserToAppUser(result.user);
       console.log("Mapped user after login:", user);
 
-      setAuthState({
+      updateAuthState({
         isAuthenticated: !!user,
         user,
         loading: false,
@@ -246,7 +259,7 @@ export const NeonProvider: React.FC<NeonProviderProps> = ({ children }) => {
       console.error("Signup error in NeonProvider:", error);
 
       // Restore original auth state to prevent any temporary auth changes from affecting UI
-      setAuthState(originalAuthState);
+      updateAuthState(originalAuthState);
 
       // Add better error handling
       if (
@@ -278,7 +291,7 @@ export const NeonProvider: React.FC<NeonProviderProps> = ({ children }) => {
   const logout = async (): Promise<void> => {
     try {
       await signOut();
-      setAuthState({
+      updateAuthState({
         isAuthenticated: false,
         user: null,
         loading: false,
@@ -286,7 +299,7 @@ export const NeonProvider: React.FC<NeonProviderProps> = ({ children }) => {
     } catch (error: any) {
       console.error("Logout error:", error);
       // Always set logged out state even if error occurs
-      setAuthState({
+      updateAuthState({
         isAuthenticated: false,
         user: null,
         loading: false,
@@ -319,7 +332,7 @@ export const NeonProvider: React.FC<NeonProviderProps> = ({ children }) => {
     const neonUser = await getCurrentUser();
     if (neonUser && authState.user) {
       const user = await mapNeonUserToAppUser(neonUser);
-      setAuthState((prev) => ({ ...prev, user }));
+      updateAuthState((prev) => ({ ...prev, user }));
     }
   };
 
@@ -339,12 +352,11 @@ export const NeonProvider: React.FC<NeonProviderProps> = ({ children }) => {
       // Be more conservative about handling auth state changes to avoid interference
       if (event === "SIGNED_IN" && session?.user) {
         const user = await mapNeonUserToAppUser(session.user);
-        setAuthState((prev) => ({
-          ...prev,
+        updateAuthState({
           isAuthenticated: !!user,
           user,
           loading: false,
-        }));
+        });
       } else if (event === "SIGNED_OUT") {
         // Only sign out if we're not currently on a public auth route to avoid redirect loops
         const currentPath = window.location.pathname;
@@ -352,12 +364,11 @@ export const NeonProvider: React.FC<NeonProviderProps> = ({ children }) => {
         const isOnPublicAuthRoute = publicAuthRoutes.some(route => currentPath.startsWith(route));
 
         if (!isOnPublicAuthRoute) {
-          setAuthState((prev) => ({
-            ...prev,
+          updateAuthState({
             isAuthenticated: false,
             user: null,
             loading: false,
-          }));
+          });
         } else {
           console.log("Ignoring SIGNED_OUT event on public auth route to prevent interference");
         }

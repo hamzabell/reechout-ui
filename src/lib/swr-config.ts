@@ -41,9 +41,9 @@ export const swrPutter = async (url: string, { arg }: { arg: any }) => {
 };
 
 // Fetcher function for DELETE requests
-export const swrDeleter = async (url: string) => {
+export const swrDeleter = async (url: string, { arg }: { arg?: any }) => {
   try {
-    const response = await del(url);
+    const response = await del(url, arg);
     return response;
   } catch (error) {
     throw error;

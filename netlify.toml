@@ -5,9 +5,16 @@
   publish = "build"
   # Command to build the application
   command = "npm run build"
+  # Functions directory
+  functions = "netlify/functions"
 
 [build.environment]
   NODE_VERSION = "18"
+
+[functions]
+  directory = "netlify/functions"
+  node_bundler = "esbuild"
+
 
 # Redirects for React Router
 [[redirects]]

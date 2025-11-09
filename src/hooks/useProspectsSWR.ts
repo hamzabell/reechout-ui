@@ -3,6 +3,7 @@ import useSWR, { mutate } from 'swr';
 import { Prospect, ProspectStatus } from '../types';
 import { swrConfig } from '../lib/swr-config';
 import { useSWRMutation, useOptimisticMutation } from './useSWRMutation';
+import { useNeon } from '../providers/NeonProvider';
 
 export interface ProspectFilters {
   status?: string;
@@ -25,9 +26,12 @@ export interface ProspectsResponse {
 export const useProspects = (filters?: ProspectFilters) => {
   const [selectedProspects, setSelectedProspects] = useState<string[]>([]);
   const [searchQuery, setSearchQuery] = useState<string>('');
+  const { authState } = useNeon();
 
   const { data, error, isLoading, isValidating, mutate } = useSWR<ProspectsResponse>(
-    ['/prospects/list-prospects', { ...filters, search: searchQuery }],
+    authState.isAuthenticated && authState.user
+      ? ['/prospects/list-prospects', { ...filters, search: searchQuery, userId: authState.user.id }]
+      : null,
     swrConfig
   );
 

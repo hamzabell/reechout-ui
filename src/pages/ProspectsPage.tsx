@@ -1,7 +1,8 @@
 import React, { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { mutate as globalMutate } from 'swr';
-import { useProspects, useCreateProspect, useUpdateProspect, useDeleteProspect } from '../hooks/useProspects';
+import { useProspects, useCreateProspect } from '../hooks/useProspectsSWR';
+import { useSWRMutation } from '../hooks/useSWRMutation';
 import { useCampaigns } from '../hooks/useCampaigns';
 import { useToast } from '../hooks/useToast';
 import { useConfirm } from '../hooks/useConfirm';
@@ -19,12 +20,16 @@ const ProspectsPage: React.FC = () => {
   const { authState } = useNeon();
   
   // Fetch prospects using SWR
-  const { prospects, isLoading, error, mutate: mutateProspects } = useProspects(authState.user?.id);
+  const { prospects, isLoading, error, mutate: mutateProspects } = useProspects();
   
   // Mutation hooks
   const { trigger: createProspect } = useCreateProspect();
-  const { trigger: updateProspect } = useUpdateProspect();
-  const { trigger: deleteProspect } = useDeleteProspect();
+  const { trigger: updateProspect } = useSWRMutation('/prospects/update-prospect', 'PUT', {
+    invalidateQueries: ['/prospects/list-prospects']
+  });
+  const { trigger: deleteProspect } = useSWRMutation('/prospects/delete-prospect', 'DELETE', {
+    invalidateQueries: ['/prospects/list-prospects']
+  });
 
   // TODO: Re-enable when campaigns/advanced endpoint is fixed
   // const { campaigns = [] } = useCampaigns({ status: 'draft' });
@@ -157,7 +162,7 @@ const ProspectsPage: React.FC = () => {
       
       // 4. Make API call
       await updateProspect({
-        prospectId: editingProspect.id,
+        id: editingProspect.id,
         ...updates,
         userId: authState.user.id
       });
@@ -204,7 +209,7 @@ const ProspectsPage: React.FC = () => {
           
           // 2. Make API call
           await deleteProspect({
-            prospectId,
+            id: prospectId,
             userId: authState.user!.id
           });
           
@@ -252,7 +257,7 @@ const ProspectsPage: React.FC = () => {
       
       // 4. Make API call
       await updateProspect({
-        prospectId: updatingStatusProspect.id,
+        id: updatingStatusProspect.id,
         status: newStatus,
         userId: authState.user.id
       });
@@ -386,7 +391,7 @@ const ProspectsPage: React.FC = () => {
           await Promise.all(
             prospectsToDelete.map(prospectId =>
               deleteProspect({
-                prospectId,
+                id: prospectId,
                 userId: authState.user!.id
               })
             )
@@ -678,7 +683,7 @@ const ProspectsPage: React.FC = () => {
       await Promise.all(
         selectedProspects.map(prospectId =>
           updateProspect({
-            prospectId,
+            id: prospectId,
             status,
             userId: authState.user!.id
           })

@@ -3,7 +3,9 @@ import { useAI } from '../hooks/useAI';
 import { useToast } from '../hooks/useToast';
 import { useModalWithAutoId } from '../providers/ModalProvider';
 import { useNeon } from '../providers/NeonProvider';
-import { useTemplates, useCreateTemplate, useUpdateTemplate, useDeleteTemplate, useDuplicateTemplate } from '../hooks/useTemplates';
+import { useTemplates, useCreateTemplate, useDeleteTemplate, useDuplicateTemplate } from '../hooks/useTemplates';
+import { useSWRMutation } from '../hooks/useSWRMutation';
+import { del } from '../services/apiService';
 import { EmailTemplate } from '../types';
 import Button from '../components/Button';
 import ModalWrapper from '../components/ModalWrapper';
@@ -17,12 +19,13 @@ const TemplatesPage: React.FC = () => {
   const { authState } = useNeon();
   
   // Fetch templates using SWR
-  const { templates, isLoading: templatesLoading, error: templatesError, mutate: mutateTemplates } = useTemplates(authState.user?.id);
-  
+  const { templates, isLoading: templatesLoading, error: templatesError, mutate: mutateTemplates } = useTemplates();
+
   // Mutation hooks
   const { trigger: createTemplate, isMutating: isCreating } = useCreateTemplate();
-  const { trigger: updateTemplate, isMutating: isUpdating } = useUpdateTemplate();
-  const { trigger: deleteTemplate } = useDeleteTemplate();
+  const { trigger: updateTemplate } = useSWRMutation('/templates', 'PUT', {
+    invalidateQueries: ['/templates']
+  });
   const { trigger: duplicateTemplate } = useDuplicateTemplate();
 
   const [aiPrompt, setAiPrompt] = useState('');
@@ -65,12 +68,17 @@ const TemplatesPage: React.FC = () => {
           
           // Optimistically update the UI
           mutateTemplates(
-            (current: any) => ({
-              ...current,
-              templates: current.templates.map((t: any) => 
-                t.id === template.id ? updatedTemplate : t
-              )
-            }),
+            (current: any) => {
+              if (!current || !current.templates) {
+                return current;
+              }
+              return {
+                ...current,
+                templates: current.templates.map((t: any) =>
+                  t.id === template.id ? updatedTemplate : t
+                )
+              };
+            },
             false
           );
           
@@ -78,7 +86,7 @@ const TemplatesPage: React.FC = () => {
           onClose();
           
           await updateTemplate({
-            templateId: template.id,
+            id: template.id,
             name: localForm.name,
             subject: localForm.subject,
             body: localForm.body,
@@ -111,10 +119,13 @@ const TemplatesPage: React.FC = () => {
           
           // Optimistically add to UI
           mutateTemplates(
-            (current: any) => ({
-              ...current,
-              templates: [newTemplate, ...(current?.templates || [])]
-            }),
+            (current: any) => {
+              const currentTemplates = current?.templates || [];
+              return {
+                ...current,
+                templates: [newTemplate, ...currentTemplates]
+              };
+            },
             false
           );
           
@@ -316,18 +327,24 @@ const TemplatesPage: React.FC = () => {
     try {
       // Optimistically remove from UI
       mutateTemplates(
-        (current: any) => ({
-          ...current,
-          templates: current.templates.filter((t: any) => t.id !== id)
-        }),
+        (current: any) => {
+          if (!current || !current.templates) {
+            return current;
+          }
+          return {
+            ...current,
+            templates: current.templates.filter((t: any) => t.id !== id)
+          };
+        },
         false
       );
-      
-      await deleteTemplate({
-        templateId: id,
+
+      // Call the API directly to delete the template
+      await del(`/templates`, {
+        id,
         userId: authState.user.id
       });
-      
+
       // No need to revalidate on delete since item is already removed
       showToast('Template deleted successfully!', 'success');
     } catch (error: any) {
@@ -353,24 +370,31 @@ const TemplatesPage: React.FC = () => {
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString()
       };
-      
+
       // Optimistically add to UI
       mutateTemplates(
-        (current: any) => ({
-          ...current,
-          templates: [duplicatedTemplate, ...(current?.templates || [])]
-        }),
+        (current: any) => {
+          const currentTemplates = current?.templates || [];
+          return {
+            ...current,
+            templates: [duplicatedTemplate, ...currentTemplates]
+          };
+        },
         false
       );
-      
+
+      // Create the duplicated template using the correct data format for POST /templates
       await duplicateTemplate({
-        templateId: template.id,
+        name: `${template.name} (Copy)`,
+        subject: template.subject,
+        body: template.body,
+        variables: template.variables,
         userId: authState.user.id
       });
-      
+
       // Silently revalidate to replace temp ID with real ID from server
       await mutateTemplates();
-      
+
       showToast('Template duplicated successfully!', 'success');
     } catch (error) {
       showToast(error instanceof Error ? error.message : 'Failed to duplicate template', 'error');

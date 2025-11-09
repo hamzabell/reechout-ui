@@ -1,7 +1,9 @@
-// Base API configuration
-const API_BASE_URL = process.env.NODE_ENV === 'development'
-  ? 'http://localhost:58656/.netlify/functions'
-  : '/.netlify/functions';
+// Base API configuration - use the same configuration as src/lib/api.ts
+const API_BASE_URL = process.env.REACT_APP_API_BASE_URL
+  ? `${process.env.REACT_APP_API_BASE_URL}/.netlify/functions`
+  : (process.env.NODE_ENV === 'development'
+    ? 'http://localhost:3001/.netlify/functions'
+    : '/.netlify/functions');
 
 // Get auth token from localStorage
 const getAuthToken = (): string | null => {
@@ -13,54 +15,6 @@ const getAuthToken = (): string | null => {
 
 // Generic API request function with authentication
 async function apiRequest(endpoint: string, options: RequestInit = {}): Promise<any> {
-  // Temporary mock implementation for authentication endpoints
-  if (endpoint.includes('/api/auth/register') || endpoint.includes('/api/auth/login')) {
-    console.log(`Mock ${endpoint} request:`, options.body);
-
-    // Simulate network delay
-    await new Promise(resolve => setTimeout(resolve, 1000));
-
-    if (endpoint.includes('/api/auth/register')) {
-      const { email, name } = JSON.parse(options.body as string);
-      return {
-        success: true,
-        message: 'Account created successfully (MOCK)',
-        user: {
-          id: 'mock-user-' + Date.now(),
-          email: email.toLowerCase(),
-          name: name.trim(),
-          company: null,
-          title: null,
-          isActive: true,
-          createdAt: new Date().toISOString()
-        },
-        token: 'mock-jwt-token-' + Date.now(),
-        sessionToken: 'mock-session-token-' + Date.now(),
-        expiresIn: '7d'
-      };
-    }
-
-    if (endpoint.includes('/api/auth/login')) {
-      const { email } = JSON.parse(options.body as string);
-      return {
-        success: true,
-        message: 'Login successful (MOCK)',
-        user: {
-          id: 'mock-user-123',
-          email: email.toLowerCase(),
-          name: 'Mock User',
-          company: 'Mock Company',
-          title: 'Mock Title',
-          isActive: true,
-          lastLoginAt: new Date().toISOString(),
-          createdAt: new Date().toISOString()
-        },
-        token: 'mock-jwt-token-' + Date.now(),
-        sessionToken: 'mock-session-token-' + Date.now(),
-        expiresIn: '7d'
-      };
-    }
-  }
 
   const url = `${API_BASE_URL}${endpoint}`;
 
@@ -134,8 +88,11 @@ export async function put(endpoint: string, data: any): Promise<any> {
 }
 
 // Generic DELETE request
-export async function del(endpoint: string): Promise<any> {
-  return apiRequest(endpoint, { method: 'DELETE' });
+export async function del(endpoint: string, data?: any): Promise<any> {
+  return apiRequest(endpoint, {
+    method: 'DELETE',
+    ...(data && { body: JSON.stringify(data) }),
+  });
 }
 
 // API endpoints for new architecture

@@ -21,7 +21,7 @@ const publishableClientKey =
 export const stackApp = new StackClientApp({
   projectId: projectId,
   publishableClientKey: publishableClientKey,
-  tokenStore: "memory",
+  tokenStore: "cookie",
   urls: {
     handler: window.location.origin + "/handler",
     signIn: window.location.origin + "/handler/sign-in",

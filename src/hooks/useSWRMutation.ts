@@ -30,7 +30,7 @@ export const useSWRMutation = <TData = any, TVariables = any>(
           response = await swrPutter(endpoint, { arg: variables });
           break;
         case 'DELETE':
-          response = await swrDeleter(endpoint);
+          response = await swrDeleter(endpoint, { arg: variables });
           break;
         default:
           throw new Error(`Unsupported method: ${method}`);
@@ -124,7 +124,7 @@ export const useOptimisticMutation = <TData = any, TVariables = any>(
           response = await swrPutter(endpoint, { arg: variables });
           break;
         case 'DELETE':
-          response = await swrDeleter(endpoint);
+          response = await swrDeleter(endpoint, { arg: variables });
           break;
         default:
           throw new Error(`Unsupported method: ${method}`);

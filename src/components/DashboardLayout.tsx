@@ -1,17 +1,19 @@
 import React, { useState, useRef } from 'react';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
-import { useAuth } from '../hooks/useAuth';
+import { useNeon } from '../providers/NeonProvider';
 import { useConfirm } from '../hooks/useConfirm';
 import { TabType } from '../types';
 
 const DashboardLayout: React.FC = () => {
   const [activeTab, setActiveTab] = useState<TabType>('overview');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const { user, logout } = useAuth();
+  const { authState, logout } = useNeon();
   const navigate = useNavigate();
   const location = useLocation();
   const { confirmWarning } = useConfirm();
   const mainContentRef = useRef<HTMLDivElement>(null);
+
+  const user = authState.user;
 
   const tabs = React.useMemo(() => [
     { id: 'overview' as TabType, label: 'Overview', icon: 'fas fa-dashboard' },

@@ -2,12 +2,19 @@ import useSWR from 'swr';
 import { EmailTemplate } from '../types';
 import { swrConfig, staticConfig } from '../lib/swr-config';
 import { useSWRMutation, useOptimisticMutation } from './useSWRMutation';
+import { useNeon } from '../providers/NeonProvider';
 
 // Hook for fetching all email templates
 export const useTemplates = () => {
+  const { authState } = useNeon();
+
+  // Only fetch templates if user is authenticated
   const { data, error, isLoading, isValidating, mutate } = useSWR<{
     templates: EmailTemplate[];
-  }>('/templates', staticConfig);
+  }>(
+    authState.isAuthenticated && authState.user ? `/templates?userId=${authState.user.id}` : null,
+    staticConfig
+  );
 
   return {
     templates: data?.templates || [],
@@ -38,9 +45,12 @@ export const useCreateTemplate = () => {
   return useOptimisticMutation(
     '/templates',
     'POST',
-    (newTemplate: EmailTemplate) => (current: { templates: EmailTemplate[] }) => ({
-      templates: [newTemplate, ...current.templates],
-    }),
+    (newTemplate: EmailTemplate) => (current: { templates: EmailTemplate[] }) => {
+      const currentTemplates = current?.templates || [];
+      return {
+        templates: [newTemplate, ...currentTemplates],
+      };
+    },
     {
       invalidateQueries: ['/templates'],
     }
@@ -52,13 +62,18 @@ export const useUpdateTemplate = (templateId: string) => {
   return useOptimisticMutation(
     `/templates/${templateId}`,
     'PUT',
-    (variables: Partial<EmailTemplate>) => (current: { templates: EmailTemplate[] }) => ({
-      templates: current.templates.map(template =>
-        template.id === templateId
-          ? { ...template, ...variables, updatedAt: new Date().toISOString() }
-          : template
-      ),
-    }),
+    (variables: Partial<EmailTemplate>) => (current: { templates: EmailTemplate[] }) => {
+      if (!current || !current.templates) {
+        return current;
+      }
+      return {
+        templates: current.templates.map(template =>
+          template.id === templateId
+            ? { ...template, ...variables, updatedAt: new Date().toISOString() }
+            : template
+        ),
+      };
+    },
     {
       invalidateQueries: [
         `/templates/${templateId}`,
@@ -73,9 +88,14 @@ export const useDeleteTemplate = (templateId: string) => {
   return useOptimisticMutation(
     `/templates/${templateId}`,
     'DELETE',
-    () => (current: { templates: EmailTemplate[] }) => ({
-      templates: current.templates.filter(template => template.id !== templateId),
-    }),
+    () => (current: { templates: EmailTemplate[] }) => {
+      if (!current || !current.templates) {
+        return current;
+      }
+      return {
+        templates: current.templates.filter(template => template.id !== templateId),
+      };
+    },
     {
       invalidateQueries: ['/templates'],
     }
@@ -84,13 +104,7 @@ export const useDeleteTemplate = (templateId: string) => {
 
 // Hook for duplicating templates
 export const useDuplicateTemplate = () => {
-  return useSWRMutation(
-    '/templates',
-    'POST',
-    {
-      invalidateQueries: ['/templates'],
-    }
-  );
+  return useCreateTemplate();
 };
 
 // Hook for testing templates

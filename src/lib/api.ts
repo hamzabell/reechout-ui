@@ -1,9 +1,16 @@
 // API helper functions for making requests to Netlify functions
-const API_BASE_URL = process.env.REACT_APP_API_URL || window.location.origin;
+const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || window.location.origin;
 
 // Generic API request function
 const apiRequest = async (endpoint: string, options: RequestInit = {}) => {
-  const url = `${API_BASE_URL}/.netlify/functions${endpoint}`;
+  // For Netlify functions, we need to use the correct path format
+  const isNetlifyFunction = endpoint.startsWith('/user-') ||
+                           endpoint.startsWith('/prospects-') ||
+                           endpoint.startsWith('/templates-');
+
+  const url = isNetlifyFunction
+    ? `${API_BASE_URL}/.netlify/functions${endpoint}`
+    : `${API_BASE_URL}${endpoint}`;
 
   const defaultOptions = {
     method: "POST",
@@ -40,21 +47,21 @@ const apiRequest = async (endpoint: string, options: RequestInit = {}) => {
 // User profile API functions
 export const userProfileApi = {
   get: async (neonUserId: string) => {
-    const data = await apiRequest("/user-profile/get", {
+    const data = await apiRequest("/user-profile-get", {
       body: JSON.stringify({ neonUserId }),
     });
     return data.userProfile;
   },
 
   create: async (neonUser: any) => {
-    const data = await apiRequest("/user-profile/create", {
+    const data = await apiRequest("/user-profile-create", {
       body: JSON.stringify({ neonUser }),
     });
     return data.userProfile;
   },
 
   updateLastLogin: async (neonUserId: string) => {
-    const data = await apiRequest("/user-profile/update-last-login", {
+    const data = await apiRequest("/user-profile-update-last-login", {
       body: JSON.stringify({ neonUserId }),
     });
     return data.userProfile;
