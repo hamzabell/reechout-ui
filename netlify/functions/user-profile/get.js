@@ -1,25 +1,25 @@
 const { PrismaClient } = require('@prisma/client');
+const { createCorsResponse, createSuccessResponse, createErrorResponse } = require('../utils/cors');
 
 // Initialize Prisma Client for serverless environment
 const prisma = new PrismaClient();
 
 exports.handler = async (event, context) => {
+  // Handle CORS preflight request
+  if (event.httpMethod === 'OPTIONS') {
+    return createCorsResponse();
+  }
+
   // Only allow POST requests
   if (event.httpMethod !== 'POST') {
-    return {
-      statusCode: 405,
-      body: JSON.stringify({ error: 'Method not allowed' })
-    };
+    return createErrorResponse('Method not allowed', 405);
   }
 
   try {
     const { neonUserId } = JSON.parse(event.body);
 
     if (!neonUserId) {
-      return {
-        statusCode: 400,
-        body: JSON.stringify({ error: 'neonUserId is required' })
-      };
+      return createErrorResponse('neonUserId is required', 400);
     }
 
     // Get user profile from database
@@ -28,23 +28,14 @@ exports.handler = async (event, context) => {
     });
 
     if (!userProfile) {
-      return {
-        statusCode: 404,
-        body: JSON.stringify({ error: 'User profile not found' })
-      };
+      return createErrorResponse('User profile not found', 404);
     }
 
-    return {
-      statusCode: 200,
-      body: JSON.stringify({ userProfile })
-    };
+    return createSuccessResponse({ userProfile });
 
   } catch (error) {
     console.error('Error getting user profile:', error);
-    return {
-      statusCode: 500,
-      body: JSON.stringify({ error: 'Internal server error' })
-    };
+    return createErrorResponse('Internal server error', 500);
   } finally {
     // Disconnect Prisma client in serverless environment
     await prisma.$disconnect();

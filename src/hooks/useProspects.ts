@@ -45,11 +45,10 @@ export const useProspects = () => {
           phoneNumber: '+1 (555) 123-4567',
           linkedinProfile: 'https://linkedin.com/in/johnsmith',
           status: 'NEW' as ProspectStatus,
-          score: 85,
+          createdBy: 'user1',
           tags: ['enterprise', 'tech'],
           isOptedOut: false,
-          lastContacted: '2024-01-15',
-          createdAt: new Date().toISOString(),
+                    createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString()
         },
         {
@@ -64,11 +63,10 @@ export const useProspects = () => {
           phoneNumber: '+1 (555) 987-6543',
           linkedinProfile: 'https://linkedin.com/in/sarahjohnson',
           status: 'CONTACTED' as ProspectStatus,
-          score: 92,
+          createdBy: 'user1',
           tags: ['startup', 'decision-maker'],
           isOptedOut: false,
-          lastContacted: '2024-01-20',
-          createdAt: new Date().toISOString(),
+                    createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString()
         },
         {
@@ -83,11 +81,10 @@ export const useProspects = () => {
           phoneNumber: '+1 (555) 456-7890',
           linkedinProfile: 'https://linkedin.com/in/michaelchen',
           status: 'REPLIED' as ProspectStatus,
-          score: 78,
+          createdBy: 'user1',
           tags: ['enterprise', 'engineering'],
           isOptedOut: false,
-          lastContacted: '2024-01-25',
-          createdAt: new Date().toISOString(),
+                    createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString()
         },
         {
@@ -102,11 +99,10 @@ export const useProspects = () => {
           phoneNumber: '+1 (555) 234-5678',
           linkedinProfile: 'https://linkedin.com/in/alicewilliams',
           status: 'NOT_INTERESTED' as ProspectStatus,
-          score: 30,
+          createdBy: 'user1',
           tags: [],
           isOptedOut: false,
-          lastContacted: '2024-01-10',
-          createdAt: new Date().toISOString(),
+                    createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString()
         },
         {
@@ -121,11 +117,10 @@ export const useProspects = () => {
           phoneNumber: '+1 (555) 345-6789',
           linkedinProfile: 'https://linkedin.com/in/sarahmitchell',
           status: 'NEW' as ProspectStatus,
-          score: 85,
+          createdBy: 'user1',
           tags: ['enterprise', 'decision-maker'],
           isOptedOut: false,
-          lastContacted: '2024-02-01',
-          createdAt: new Date().toISOString(),
+                    createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
           researchData: {
             companyOverview: {
@@ -183,7 +178,7 @@ export const useProspects = () => {
         filteredProspects = filteredProspects.filter(prospect =>
           prospect.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
           prospect.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          prospect.company.toLowerCase().includes(searchQuery.toLowerCase())
+          (prospect.company && prospect.company.toLowerCase().includes(searchQuery.toLowerCase()))
         );
       }
       
@@ -193,7 +188,7 @@ export const useProspects = () => {
       
       if (filters?.company) {
         filteredProspects = filteredProspects.filter(prospect => 
-          prospect.company.toLowerCase().includes(filters.company!.toLowerCase())
+          (prospect.company && prospect.company.toLowerCase().includes(filters.company!.toLowerCase()))
         );
       }
       
@@ -283,9 +278,9 @@ export const useProspects = () => {
       phoneNumber: prospectData.phoneNumber,
       location: prospectData.location,
       status: 'NEW',
-      score: 50,
-      tags: prospectData.tags || [],
+            tags: prospectData.tags || [],
       isOptedOut: false,
+      createdBy: 'user1',
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
     };
@@ -364,9 +359,9 @@ export const useProspects = () => {
       phoneNumber: '+1 (555) 000-0000',
       linkedinProfile: `https://linkedin.com/in/prospect${i + 1}`,
       status: 'NEW' as ProspectStatus,
-      score: 50,
-      tags: ['imported'],
+            tags: ['imported'],
       isOptedOut: false,
+      createdBy: 'user1',
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
     }));

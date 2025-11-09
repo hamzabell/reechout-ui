@@ -1,34 +1,28 @@
 const { PrismaClient } = require('@prisma/client');
-const { handleCors, addCorsHeaders } = require('./cors-helper');
+const { createCorsResponse, createSuccessResponse, createErrorResponse } = require('./utils/cors');
 
 // Initialize Prisma Client for serverless environment
 const prisma = new PrismaClient();
 
 exports.handler = async (event, context) => {
-  // Handle CORS preflight requests
+  // Handle CORS preflight request
   if (event.httpMethod === 'OPTIONS') {
-    return handleCors();
+    return createCorsResponse();
   }
 
-  // Only allow GET requests
-  if (event.httpMethod !== 'GET') {
-    return addCorsHeaders({
-      statusCode: 405,
-      body: JSON.stringify({ error: 'Method not allowed' })
-    });
+  // Only allow POST requests
+  if (event.httpMethod !== 'POST') {
+    return createErrorResponse('Method not allowed', 405);
   }
 
   try {
-    const userId = event.queryStringParameters?.userId;
+    const { userId, ...filters } = JSON.parse(event.body);
 
     if (!userId) {
-      return addCorsHeaders({
-        statusCode: 400,
-        body: JSON.stringify({ error: 'userId is required' })
-      });
+      return createErrorResponse('User ID is required', 400);
     }
 
-    // Parse query parameters for filtering and search
+    // Parse filters for filtering and search
     const {
       search,
       status,
@@ -38,7 +32,7 @@ exports.handler = async (event, context) => {
       sortOrder = 'desc',
       limit = 50,
       offset = 0
-    } = event.queryStringParameters || {};
+    } = filters || {};
 
     // Build where clause
     const where = {
@@ -114,35 +108,31 @@ exports.handler = async (event, context) => {
       }
     });
 
-    // Transform prospects to match frontend expectations
+    // Transform prospects to match frontend expectations and add _count for compatibility
     const transformedProspects = prospects.map(prospect => ({
       ...prospect,
       // Add missing fields with default values for frontend compatibility
       score: prospect.score || 50,
       lastContacted: prospect.lastContacted || null,
+      _count: {
+        campaignProspects: 0 // Add this for frontend compatibility
+      }
     }));
 
     // Calculate if there are more prospects
     const hasMore = parsedOffset + prospects.length < total;
 
-    return addCorsHeaders({
-      statusCode: 200,
-      body: JSON.stringify({
-        prospects: transformedProspects,
-        total,
-        hasMore,
-        limit: parsedLimit,
-        offset: parsedOffset
-      })
+    return createSuccessResponse({
+      prospects: transformedProspects,
+      total,
+      hasMore,
+      limit: parsedLimit,
+      offset: parsedOffset
     });
 
   } catch (error) {
     console.error('Error fetching prospects:', error);
-
-    return addCorsHeaders({
-      statusCode: 500,
-      body: JSON.stringify({ error: 'Internal server error' })
-    });
+    return createErrorResponse('Internal server error', 500);
   } finally {
     // Disconnect Prisma client in serverless environment
     await prisma.$disconnect();

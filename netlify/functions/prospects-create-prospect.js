@@ -60,28 +60,27 @@ exports.handler = async (event, context) => {
       });
     }
 
-    // Create the prospect
+    // Create the prospect - filter out unknown fields
+    const { score, lastContacted, ...validProspectData } = prospectData;
+
     const newProspect = await prisma.prospect.create({
       data: {
-        name: prospectData.name,
-        email: prospectData.email,
-        company: prospectData.company || null,
-        title: prospectData.title || null,
-        website: prospectData.website || null,
-        industry: prospectData.industry || null,
-        linkedinProfile: prospectData.linkedinProfile || null,
-        phoneNumber: prospectData.phoneNumber || null,
-        location: prospectData.location || null,
-        notes: prospectData.notes || null,
-        researchData: prospectData.researchData || null,
-        source: prospectData.source || null,
-        isOptedOut: prospectData.isOptedOut || false,
-        tags: prospectData.tags || [],
-        status: prospectData.status || 'NEW',
-        createdBy: prospectData.userId,
-        // Add new fields with defaults if not provided
-        score: prospectData.score || 50,
-        lastContacted: prospectData.lastContacted || null,
+        name: validProspectData.name,
+        email: validProspectData.email,
+        company: validProspectData.company || null,
+        title: validProspectData.title || null,
+        website: validProspectData.website || null,
+        industry: validProspectData.industry || null,
+        linkedinProfile: validProspectData.linkedinProfile || null,
+        phoneNumber: validProspectData.phoneNumber || null,
+        location: validProspectData.location || null,
+        notes: validProspectData.notes || null,
+        researchData: validProspectData.researchData || null,
+        source: validProspectData.source || null,
+        isOptedOut: validProspectData.isOptedOut || false,
+        tags: validProspectData.tags || [],
+        status: validProspectData.status || 'NEW',
+        createdBy: validProspectData.userId,
       },
       include: {
         creator: {

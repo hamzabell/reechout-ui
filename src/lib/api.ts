@@ -8,7 +8,10 @@ const apiRequest = async (endpoint: string, options: RequestInit = {}) => {
                            endpoint.startsWith('/prospects-') ||
                            endpoint.startsWith('/templates-');
 
-  const url = isNetlifyFunction
+  // If the base URL already includes .netlify/functions, don't add it again
+  const baseUrlIncludesFunctions = API_BASE_URL.includes('.netlify/functions');
+
+  const url = isNetlifyFunction && !baseUrlIncludesFunctions
     ? `${API_BASE_URL}/.netlify/functions${endpoint}`
     : `${API_BASE_URL}${endpoint}`;
 

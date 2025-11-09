@@ -68,6 +68,15 @@ const ResetPasswordPage: React.FC = () => {
       const { resetPasswordWithToken } = await import('../lib/neon');
       await resetPasswordWithToken(token, formData.password);
 
+      // Stack Auth might automatically sign the user in after password reset
+      // We need to sign them out to ensure they need to log in with the new password
+      try {
+        const { signOut } = await import('../lib/neon');
+        await signOut();
+      } catch (signOutError) {
+        console.warn('Could not sign out after password reset:', signOutError);
+      }
+
       setStatus('success');
       setMessage('Password reset successfully! You can now log in with your new password.');
 

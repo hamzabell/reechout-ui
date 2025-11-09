@@ -8,9 +8,10 @@ export const useSWRMutation = <TData = any, TVariables = any>(
   endpoint: string,
   method: 'POST' | 'PUT' | 'DELETE' = 'POST',
   options?: {
-    onSuccess?: (data: TData, variables: TVariables) => void;
-    onError?: (error: Error, variables: TVariables) => void;
+    onSuccess?: (data: TData, variables: TVariables, optimisticData?: any) => void;
+    onError?: (error: Error, variables: TVariables, optimisticData?: any) => void;
     invalidateQueries?: string[]; // Query keys to invalidate after success
+    optimisticUpdate?: (variables: TVariables) => any; // Function to create optimistic data
   }
 ) => {
   const [isMutating, setIsMutating] = useState(false);
@@ -18,8 +19,14 @@ export const useSWRMutation = <TData = any, TVariables = any>(
 
   const trigger = useCallback(async (variables: TVariables): Promise<TData> => {
     setIsMutating(true);
+    let optimisticData: any;
 
     try {
+      // Perform optimistic update if provided
+      if (options?.optimisticUpdate) {
+        optimisticData = options.optimisticUpdate(variables);
+      }
+
       let response: TData;
 
       switch (method) {
@@ -43,9 +50,9 @@ export const useSWRMutation = <TData = any, TVariables = any>(
         });
       }
 
-      // Call success callback
+      // Call success callback with optimistic data
       if (options?.onSuccess) {
-        options.onSuccess(response, variables);
+        options.onSuccess(response, variables, optimisticData);
       }
 
       // Show success message for CRUD operations
@@ -61,9 +68,9 @@ export const useSWRMutation = <TData = any, TVariables = any>(
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Operation failed';
 
-      // Call error callback
+      // Call error callback with optimistic data for rollback
       if (options?.onError) {
-        options.onError(error instanceof Error ? error : new Error(errorMessage), variables);
+        options.onError(error instanceof Error ? error : new Error(errorMessage), variables, optimisticData);
       }
 
       throw error;

@@ -1,15 +1,18 @@
 const { PrismaClient } = require('@prisma/client');
+const { createCorsResponse, createSuccessResponse, createErrorResponse } = require('../utils/cors');
 
 // Initialize Prisma Client for serverless environment
 const prisma = new PrismaClient();
 
 exports.handler = async (event, context) => {
+  // Handle CORS preflight request
+  if (event.httpMethod === 'OPTIONS') {
+    return createCorsResponse(event);
+  }
+
   // Only allow PUT requests
   if (event.httpMethod !== 'PUT') {
-    return {
-      statusCode: 405,
-      body: JSON.stringify({ error: 'Method not allowed' })
-    };
+    return createErrorResponse('Method not allowed', 405, event);
   }
 
   try {
@@ -17,12 +20,7 @@ exports.handler = async (event, context) => {
 
     // Validate required fields
     if (!id || !userId) {
-      return {
-        statusCode: 400,
-        body: JSON.stringify({
-          error: 'Missing required fields: id, userId'
-        })
-      };
+      return createErrorResponse('Missing required fields: id, userId', 400, event);
     }
 
     // First check if the prospect exists and belongs to the user
@@ -34,12 +32,7 @@ exports.handler = async (event, context) => {
     });
 
     if (!existingProspect) {
-      return {
-        statusCode: 404,
-        body: JSON.stringify({
-          error: 'Prospect not found or you do not have permission to update it'
-        })
-      };
+      return createErrorResponse('Prospect not found or you do not have permission to update it', 404, event);
     }
 
     // If email is being updated, check if it's already taken by another prospect
@@ -53,12 +46,7 @@ exports.handler = async (event, context) => {
       });
 
       if (emailConflict) {
-        return {
-          statusCode: 409,
-          body: JSON.stringify({
-            error: 'Another prospect with this email already exists'
-          })
-        };
+        return createErrorResponse('Another prospect with this email already exists', 409, event);
       }
     }
 
@@ -66,12 +54,7 @@ exports.handler = async (event, context) => {
     if (updateData.status) {
       const validStatuses = ['NEW', 'CONTACTED', 'ENGAGED', 'REPLIED', 'INTERESTED', 'NOT_INTERESTED', 'OPTED_OUT', 'CONVERTED', 'BOUNCED'];
       if (!validStatuses.includes(updateData.status)) {
-        return {
-          statusCode: 400,
-          body: JSON.stringify({
-            error: `Invalid status. Must be one of: ${validStatuses.join(', ')}`
-          })
-        };
+        return createErrorResponse(`Invalid status. Must be one of: ${validStatuses.join(', ')}`, 400, event);
       }
     }
 
@@ -93,38 +76,30 @@ exports.handler = async (event, context) => {
       }
     });
 
-    return {
-      statusCode: 200,
-      body: JSON.stringify({ prospect: updatedProspect })
+    // Add _count for frontend compatibility
+    const prospectWithCount = {
+      ...updatedProspect,
+      _count: {
+        campaignProspects: 0 // We could query this but for simplicity use 0
+      }
     };
+
+    return createSuccessResponse({ prospect: prospectWithCount }, 200, event);
 
   } catch (error) {
     console.error('Error updating prospect:', error);
 
     // Handle unique constraint error
     if (error.code === 'P2002') {
-      return {
-        statusCode: 409,
-        body: JSON.stringify({
-          error: 'A prospect with this email already exists'
-        })
-      };
+      return createErrorResponse('A prospect with this email already exists', 409, event);
     }
 
     // Handle record not found error
     if (error.code === 'P2025') {
-      return {
-        statusCode: 404,
-        body: JSON.stringify({
-          error: 'Prospect not found'
-        })
-      };
+      return createErrorResponse('Prospect not found', 404, event);
     }
 
-    return {
-      statusCode: 500,
-      body: JSON.stringify({ error: 'Internal server error' })
-    };
+    return createErrorResponse('Internal server error', 500, event);
   } finally {
     // Disconnect Prisma client in serverless environment
     await prisma.$disconnect();

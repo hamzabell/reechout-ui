@@ -34,7 +34,7 @@ export interface Prospect {
   id: string;
   name: string;
   email: string;
-  company: string;
+  company?: string;
   title?: string;
   website?: string;
   industry?: string;
@@ -42,21 +42,16 @@ export interface Prospect {
   phoneNumber?: string;
   location?: string;
   status: ProspectStatus;
-  score: number;
   tags: string[];
   researchData?: any;
-  personalizationData?: any;
   notes?: string;
-  lastContacted?: string;
-  nextFollowUp?: string;
-  timezone?: string;
   isOptedOut: boolean;
   source?: string;
-  assignedTo?: string;
+  createdBy: string;
   createdAt: string;
   updatedAt: string;
   _count?: {
-    campaigns: number;
+    campaignProspects: number;
     emailLogs: number;
     activities: number;
   };

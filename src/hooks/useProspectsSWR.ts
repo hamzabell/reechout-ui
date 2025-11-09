@@ -1,9 +1,9 @@
-import { useState, useCallback } from 'react';
-import useSWR, { mutate } from 'swr';
-import { Prospect, ProspectStatus } from '../types';
-import { swrConfig } from '../lib/swr-config';
-import { useSWRMutation, useOptimisticMutation } from './useSWRMutation';
+import useSWR from 'swr';
+import { Prospect } from '../types';
+import { staticConfig } from '../lib/swr-config';
+import { useSWRMutation } from './useSWRMutation';
 import { useNeon } from '../providers/NeonProvider';
+import { post } from '../services/apiService';
 
 export interface ProspectFilters {
   status?: string;
@@ -24,40 +24,22 @@ export interface ProspectsResponse {
 
 // Hook for fetching prospects with filtering and search
 export const useProspects = (filters?: ProspectFilters) => {
-  const [selectedProspects, setSelectedProspects] = useState<string[]>([]);
-  const [searchQuery, setSearchQuery] = useState<string>('');
   const { authState } = useNeon();
 
   const { data, error, isLoading, isValidating, mutate } = useSWR<ProspectsResponse>(
     authState.isAuthenticated && authState.user
-      ? ['/prospects/list-prospects', { ...filters, search: searchQuery, userId: authState.user.id }]
+      ? ['/prospects-list-prospects', { ...filters, userId: authState.user.id }]
       : null,
-    swrConfig
+    async ([url, params]) => {
+      const response = await post(url, params);
+      return response;
+    },
+    staticConfig
   );
 
   const prospects = data?.prospects || [];
   const total = data?.total || 0;
   const hasMore = data?.hasMore || false;
-
-  // Selection management
-  const toggleProspectSelection = useCallback((prospectId: string) => {
-    setSelectedProspects(prev =>
-      prev.includes(prospectId)
-        ? prev.filter(id => id !== prospectId)
-        : [...prev, prospectId]
-    );
-  }, []);
-
-  const selectAllProspects = useCallback(() => {
-    setSelectedProspects(prospects.map(prospect => prospect.id));
-  }, [prospects]);
-
-  const clearSelection = useCallback(() => {
-    setSelectedProspects([]);
-  }, []);
-
-  const isAllSelected = prospects.length > 0 && selectedProspects.length === prospects.length;
-  const isPartiallySelected = selectedProspects.length > 0 && selectedProspects.length < prospects.length;
 
   return {
     prospects,
@@ -66,20 +48,7 @@ export const useProspects = (filters?: ProspectFilters) => {
     isLoading,
     isValidating,
     error,
-    mutate,
-
-    // Selection state
-    selectedProspects,
-    searchQuery,
-    isAllSelected,
-    isPartiallySelected,
-
-    // Selection actions
-    setSelectedProspects,
-    setSearchQuery,
-    toggleProspectSelection,
-    selectAllProspects,
-    clearSelection,
+    mutate, // CRITICAL: Expose mutate for optimistic updates
   };
 };
 
@@ -87,7 +56,7 @@ export const useProspects = (filters?: ProspectFilters) => {
 export const useProspect = (id: string) => {
   const { data, error, isLoading, isValidating, mutate } = useSWR<Prospect>(
     id ? [`/prospects/get-prospect?id=${id}`] : null,
-    swrConfig
+    staticConfig
   );
 
   return {
@@ -101,98 +70,167 @@ export const useProspect = (id: string) => {
 
 // Hook for creating prospects
 export const useCreateProspect = () => {
-  return useOptimisticMutation(
-    '/prospects/create-prospect',
+  const { mutate } = useProspects();
+
+  return useSWRMutation(
+    '/prospects-create-prospect',
     'POST',
-    (newProspect: Prospect) => (current: Prospect[]) => [newProspect, ...current],
     {
-      invalidateQueries: ['/prospects/list-prospects'],
+      invalidateQueries: ['/prospects-list-prospects'],
+      // Optimistic update for creating prospects
+      optimisticUpdate: (variables: any) => {
+        // Create a temporary prospect with a generated ID
+        const tempId = `temp-${Date.now()}`;
+        const tempProspect: Prospect = {
+          id: tempId,
+          name: variables.name,
+          email: variables.email,
+          company: variables.company || '',
+          title: variables.title || '',
+          website: variables.website || '',
+          industry: variables.industry || '',
+          linkedinProfile: variables.linkedinProfile || '',
+          phoneNumber: variables.phoneNumber || '',
+          location: variables.location || '',
+          status: variables.status || 'NEW',
+          tags: variables.tags || [],
+          researchData: variables.researchData || null,
+          notes: variables.notes || '',
+          isOptedOut: variables.isOptedOut || false,
+          source: variables.source || '',
+          createdBy: variables.userId,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          _count: {
+            campaignProspects: 0,
+            emailLogs: 0,
+            activities: 0
+          }
+        };
+
+        // Optimistically add the prospect to the cache
+        mutate(
+          (currentData: ProspectsResponse | undefined) => {
+            if (!currentData) return currentData;
+            return {
+              ...currentData,
+              prospects: [tempProspect, ...currentData.prospects],
+              total: currentData.total + 1
+            };
+          },
+          false // Don't revalidate yet
+        );
+
+        return tempProspect;
+      },
+      // Update with real data when successful
+      onSuccess: (response: { prospect: Prospect }, variables: any, optimisticData: Prospect) => {
+        // Replace the optimistic prospect with the real one
+        mutate(
+          (currentData: ProspectsResponse | undefined) => {
+            if (!currentData) return currentData;
+            return {
+              ...currentData,
+              prospects: currentData.prospects.map(p =>
+                p.id === optimisticData.id ? response.prospect : p
+              )
+            };
+          },
+          false
+        );
+      },
+      // Rollback on error
+      onError: (error: Error, variables: any, optimisticData: Prospect) => {
+        mutate(
+          (currentData: ProspectsResponse | undefined) => {
+            if (!currentData) return currentData;
+            return {
+              ...currentData,
+              prospects: currentData.prospects.filter(p => p.id !== optimisticData.id),
+              total: currentData.total - 1
+            };
+          },
+          false
+        );
+      }
     }
   );
 };
 
 // Hook for updating prospects
-export const useUpdateProspect = (prospectId: string) => {
-  return useOptimisticMutation(
-    `/prospects/update-prospect?id=${prospectId}`,
+export const useUpdateProspect = () => {
+  const { mutate } = useProspects();
+
+  return useSWRMutation(
+    '/prospects-update-prospect',
     'PUT',
-    (variables: Partial<Prospect>) => (current: Prospect[]) =>
-      current.map(prospect =>
-        prospect.id === prospectId
-          ? { ...prospect, ...variables, updatedAt: new Date().toISOString() }
-          : prospect
-      ),
     {
-      invalidateQueries: [
-        `/prospects/get-prospect?id=${prospectId}`,
-        '/prospects/list-prospects'
-      ],
+      invalidateQueries: ['/prospects-list-prospects'],
+      // Optimistic update for updating prospects
+      optimisticUpdate: (variables: any) => {
+        // Store the original state for potential rollback
+        const { id, userId, ...updateFields } = variables;
+
+        // Create the optimistic updated prospect
+        const optimisticUpdate = {
+          id,
+          ...updateFields,
+          updatedAt: new Date().toISOString()
+        };
+
+        // Optimistically update the prospect in the cache
+        mutate(
+          (currentData: ProspectsResponse | undefined) => {
+            if (!currentData) return currentData;
+            return {
+              ...currentData,
+              prospects: currentData.prospects.map(p =>
+                p.id === id ? { ...p, ...optimisticUpdate } : p
+              )
+            };
+          },
+          false // Don't revalidate yet
+        );
+
+        return { id, originalUpdate: optimisticUpdate };
+      },
+      // Update with real data when successful
+      onSuccess: (response: { prospect: Prospect }, variables: any, optimisticData: any) => {
+        // Replace the optimistic update with the real one
+        mutate(
+          (currentData: ProspectsResponse | undefined) => {
+            if (!currentData) return currentData;
+            return {
+              ...currentData,
+              prospects: currentData.prospects.map(p =>
+                p.id === optimisticData.id ? response.prospect : p
+              )
+            };
+          },
+          false
+        );
+      },
+      // Rollback on error
+      onError: (error: Error, variables: any, optimisticData: any) => {
+        // Re-fetch to get the original state since we don't have the original
+        mutate(
+          (currentData: ProspectsResponse | undefined) => {
+            if (!currentData) return currentData;
+            return {
+              ...currentData,
+              prospects: currentData.prospects.map(p =>
+                p.id === optimisticData.id ? { ...p, updatedAt: p.updatedAt } : p
+              )
+            };
+          },
+          false
+        );
+      }
     }
   );
 };
 
-// Hook for updating prospect status
-export const useUpdateProspectStatus = (prospectId: string) => {
-  return useOptimisticMutation(
-    `/prospects/update-prospect?id=${prospectId}`,
-    'PUT',
-    (status: ProspectStatus) => (current: Prospect[]) =>
-      current.map(prospect =>
-        prospect.id === prospectId
-          ? { ...prospect, status, updatedAt: new Date().toISOString() }
-          : prospect
-      ),
-    {
-      invalidateQueries: [
-        `/prospects/get-prospect?id=${prospectId}`,
-        '/prospects/list-prospects'
-      ],
-    }
-  );
-};
-
-// Hook for deleting prospects
-export const useDeleteProspect = (prospectId: string) => {
-  return useOptimisticMutation(
-    `/prospects/delete-prospect?id=${prospectId}`,
-    'DELETE',
-    () => (current: Prospect[]) => current.filter(prospect => prospect.id !== prospectId),
-    {
-      invalidateQueries: ['/prospects/list-prospects'],
-    }
-  );
-};
-
-// Hook for bulk status update
-export const useBulkUpdateStatus = () => {
-  return useOptimisticMutation(
-    '/prospects/bulk-update-status',
-    'POST',
-    ({ prospectIds, status }: { prospectIds: string[]; status: ProspectStatus }) =>
-      (current: Prospect[]) =>
-        current.map(prospect =>
-          prospectIds.includes(prospect.id)
-            ? { ...prospect, status, updatedAt: new Date().toISOString() }
-            : prospect
-        ),
-    {
-      invalidateQueries: ['/prospects/list-prospects'],
-    }
-  );
-};
-
-// Hook for bulk delete
-export const useBulkDeleteProspects = () => {
-  return useOptimisticMutation(
-    '/prospects/bulk-delete',
-    'DELETE',
-    (prospectIds: string[]) => (current: Prospect[]) =>
-      current.filter(prospect => !prospectIds.includes(prospect.id)),
-    {
-      invalidateQueries: ['/prospects/list-prospects'],
-    }
-  );
-};
+// Removed problematic bulk operation hooks - functionality handled at component level
 
 // Hook for CSV upload
 export const useUploadCSV = () => {
@@ -200,7 +238,7 @@ export const useUploadCSV = () => {
     '/upload/csv',
     'POST',
     {
-      invalidateQueries: ['/prospects/list-prospects'],
+      invalidateQueries: ['/prospects-list-prospects'],
     }
   );
 };
@@ -209,7 +247,7 @@ export const useUploadCSV = () => {
 export const useSearchProspects = (query: string, filters?: ProspectFilters) => {
   const { data, error, isLoading, isValidating, mutate } = useSWR<Prospect[]>(
     query ? ['/prospects/search', { query, ...filters }] : null,
-    swrConfig
+    staticConfig
   );
 
   return {
@@ -237,78 +275,10 @@ export const useResearchProspect = (prospectId: string) => {
     {
       invalidateQueries: [
         `/prospects/get-prospect?id=${prospectId}`,
-        '/prospects/list-prospects'
+        '/prospects-list-prospects'
       ],
     }
   );
 };
 
-// Combined prospects hook with all operations
-export const useProspectsOperations = (filters?: ProspectFilters) => {
-  const prospectsData = useProspects(filters);
-
-  const { trigger: createProspect, isMutating: isCreating } = useCreateProspect();
-  const { trigger: uploadCSV, isMutating: isUploading } = useUploadCSV();
-  const { trigger: bulkUpdateStatus, isMutating: isBulkUpdating } = useBulkUpdateStatus();
-  const { trigger: bulkDelete, isMutating: isBulkDeleting } = useBulkDeleteProspects();
-  const { trigger: exportProspects, isMutating: isExporting } = useExportProspects();
-
-  const handleBulkUpdateStatus = async (status: ProspectStatus) => {
-    if (prospectsData.selectedProspects.length === 0) return;
-
-    try {
-      await bulkUpdateStatus({ prospectIds: prospectsData.selectedProspects, status });
-      prospectsData.clearSelection();
-    } catch (error) {
-      throw error;
-    }
-  };
-
-  const handleBulkDelete = async () => {
-    if (prospectsData.selectedProspects.length === 0) return;
-
-    try {
-      await bulkDelete(prospectsData.selectedProspects);
-      prospectsData.clearSelection();
-    } catch (error) {
-      throw error;
-    }
-  };
-
-  const handleExport = async (exportFilters?: ProspectFilters) => {
-    try {
-      const blob = await exportProspects(exportFilters || filters || {});
-
-      // Create download link
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.style.display = 'none';
-      a.href = url;
-      a.download = `prospects-${new Date().toISOString().split('T')[0]}.csv`;
-      document.body.appendChild(a);
-      a.click();
-      window.URL.revokeObjectURL(url);
-      document.body.removeChild(a);
-    } catch (error) {
-      throw error;
-    }
-  };
-
-  return {
-    ...prospectsData,
-
-    // Operations
-    createProspect,
-    uploadCSV,
-    bulkUpdateStatus: handleBulkUpdateStatus,
-    bulkDelete: handleBulkDelete,
-    export: handleExport,
-
-    // Loading states
-    isCreating,
-    isUploading,
-    isBulkUpdating,
-    isBulkDeleting,
-    isExporting,
-  };
-};
+// Note: Selection functionality moved to component level

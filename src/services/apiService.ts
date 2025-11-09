@@ -1,9 +1,8 @@
 // Base API configuration - use the same configuration as src/lib/api.ts
-const API_BASE_URL = process.env.REACT_APP_API_BASE_URL
-  ? `${process.env.REACT_APP_API_BASE_URL}/.netlify/functions`
-  : (process.env.NODE_ENV === 'development'
-    ? 'http://localhost:3001/.netlify/functions'
-    : '/.netlify/functions');
+const API_BASE_URL = process.env.REACT_APP_API_BASE_URL ||
+  (process.env.NODE_ENV === 'development'
+    ? 'http://localhost:3001'
+    : 'https://your-app.netlify.app');
 
 // Get auth token from localStorage
 const getAuthToken = (): string | null => {
@@ -16,7 +15,15 @@ const getAuthToken = (): string | null => {
 // Generic API request function with authentication
 async function apiRequest(endpoint: string, options: RequestInit = {}): Promise<any> {
 
-  const url = `${API_BASE_URL}${endpoint}`;
+  // Add .netlify/functions prefix for Netlify function endpoints
+  const isNetlifyFunction = endpoint.startsWith('/prospects') ||
+                           endpoint.startsWith('/user-') ||
+                           endpoint.startsWith('/templates') ||
+                           endpoint.startsWith('/password-');
+
+  const url = isNetlifyFunction
+    ? `${API_BASE_URL}/.netlify/functions${endpoint}`
+    : `${API_BASE_URL}${endpoint}`;
 
   const token = getAuthToken();
 
@@ -105,7 +112,7 @@ export const API_ENDPOINTS = {
 
   // Prospects
   CREATE_LEAD: '/api/prospects/create-prospect',
-  LIST_LEADS: '/api/prospects/list-prospects',
+  LIST_LEADS: '/prospects-list-prospects',
   GET_LEAD: '/api/prospects/get-prospect',
   UPDATE_LEAD: '/api/prospects/update-prospect',
   DELETE_LEAD: '/api/prospects/delete-prospect',

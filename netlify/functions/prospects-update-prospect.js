@@ -81,11 +81,14 @@ exports.handler = async (event, context) => {
       }
     }
 
+    // Filter out unknown fields like score and lastContacted
+    const { score, lastContacted, ...validUpdateData } = updateData;
+
     // Update the prospect
     const updatedProspect = await prisma.prospect.update({
       where: { id },
       data: {
-        ...updateData,
+        ...validUpdateData,
         updatedAt: new Date()
       },
       include: {

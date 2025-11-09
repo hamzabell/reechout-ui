@@ -1,15 +1,18 @@
 const { PrismaClient } = require('@prisma/client');
+const { createCorsResponse, createSuccessResponse, createErrorResponse } = require('../utils/cors');
 
 // Initialize Prisma Client for serverless environment
 const prisma = new PrismaClient();
 
 exports.handler = async (event, context) => {
+  // Handle CORS preflight request
+  if (event.httpMethod === 'OPTIONS') {
+    return createCorsResponse(event);
+  }
+
   // Only allow POST requests
   if (event.httpMethod !== 'POST') {
-    return {
-      statusCode: 405,
-      body: JSON.stringify({ error: 'Method not allowed' })
-    };
+    return createErrorResponse('Method not allowed', 405, event);
   }
 
   try {
@@ -17,12 +20,7 @@ exports.handler = async (event, context) => {
 
     // Validate required fields
     if (!prospectData.name || !prospectData.email || !prospectData.userId) {
-      return {
-        statusCode: 400,
-        body: JSON.stringify({
-          error: 'Missing required fields: name, email, userId'
-        })
-      };
+      return createErrorResponse('Missing required fields: name, email, userId', 400, event);
     }
 
     // Check if prospect with this email already exists for this user
@@ -34,12 +32,7 @@ exports.handler = async (event, context) => {
     });
 
     if (existingProspect) {
-      return {
-        statusCode: 409,
-        body: JSON.stringify({
-          error: 'A prospect with this email already exists'
-        })
-      };
+      return createErrorResponse('A prospect with this email already exists', 409, event);
     }
 
     // Validate user exists
@@ -48,34 +41,30 @@ exports.handler = async (event, context) => {
     });
 
     if (!user) {
-      return {
-        statusCode: 404,
-        body: JSON.stringify({ error: 'User not found' })
-      };
+      return createErrorResponse('User not found', 404, event);
     }
 
-    // Create the prospect
+    // Create the prospect - filter out unknown fields
+    const { score, lastContacted, ...validProspectData } = prospectData;
+
     const newProspect = await prisma.prospect.create({
       data: {
-        name: prospectData.name,
-        email: prospectData.email,
-        company: prospectData.company || null,
-        title: prospectData.title || null,
-        website: prospectData.website || null,
-        industry: prospectData.industry || null,
-        linkedinProfile: prospectData.linkedinProfile || null,
-        phoneNumber: prospectData.phoneNumber || null,
-        location: prospectData.location || null,
-        notes: prospectData.notes || null,
-        researchData: prospectData.researchData || null,
-        source: prospectData.source || null,
-        isOptedOut: prospectData.isOptedOut || false,
-        tags: prospectData.tags || [],
-        status: prospectData.status || 'NEW',
-        createdBy: prospectData.userId,
-        // Add new fields with defaults if not provided
-        score: prospectData.score || 50,
-        lastContacted: prospectData.lastContacted || null,
+        name: validProspectData.name,
+        email: validProspectData.email,
+        company: validProspectData.company || null,
+        title: validProspectData.title || null,
+        website: validProspectData.website || null,
+        industry: validProspectData.industry || null,
+        linkedinProfile: validProspectData.linkedinProfile || null,
+        phoneNumber: validProspectData.phoneNumber || null,
+        location: validProspectData.location || null,
+        notes: validProspectData.notes || null,
+        researchData: validProspectData.researchData || null,
+        source: validProspectData.source || null,
+        isOptedOut: validProspectData.isOptedOut || false,
+        tags: validProspectData.tags || [],
+        status: validProspectData.status || 'NEW',
+        createdBy: validProspectData.userId,
       },
       include: {
         creator: {
@@ -88,38 +77,30 @@ exports.handler = async (event, context) => {
       }
     });
 
-    return {
-      statusCode: 201,
-      body: JSON.stringify({ prospect: newProspect })
+    // Add _count for frontend compatibility
+    const prospectWithCount = {
+      ...newProspect,
+      _count: {
+        campaignProspects: 0
+      }
     };
+
+    return createSuccessResponse({ prospect: prospectWithCount }, 201, event);
 
   } catch (error) {
     console.error('Error creating prospect:', error);
 
     // Handle unique constraint error
     if (error.code === 'P2002') {
-      return {
-        statusCode: 409,
-        body: JSON.stringify({
-          error: 'A prospect with this email already exists'
-        })
-      };
+      return createErrorResponse('A prospect with this email already exists', 409, event);
     }
 
     // Handle foreign key constraint error
     if (error.code === 'P2003') {
-      return {
-        statusCode: 400,
-        body: JSON.stringify({
-          error: 'Invalid user ID provided'
-        })
-      };
+      return createErrorResponse('Invalid user ID provided', 400, event);
     }
 
-    return {
-      statusCode: 500,
-      body: JSON.stringify({ error: 'Internal server error' })
-    };
+    return createErrorResponse('Internal server error', 500, event);
   } finally {
     // Disconnect Prisma client in serverless environment
     await prisma.$disconnect();

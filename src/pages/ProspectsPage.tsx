@@ -1,9 +1,8 @@
 import React, { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { mutate as globalMutate } from 'swr';
-import { useProspects, useCreateProspect } from '../hooks/useProspectsSWR';
+import { useProspects, useUpdateProspect } from '../hooks/useProspectsSWR';
 import { useSWRMutation } from '../hooks/useSWRMutation';
-import { useCampaigns } from '../hooks/useCampaigns';
 import { useToast } from '../hooks/useToast';
 import { useConfirm } from '../hooks/useConfirm';
 import { useNeon } from '../providers/NeonProvider';
@@ -12,6 +11,7 @@ import Button from '../components/Button';
 import ModalWrapper from '../components/ModalWrapper';
 import UpdateStatusModal from '../components/UpdateStatusModal';
 import { post } from '../services/apiService';
+import { parseCSV, validateProspects, generateCSVTemplate } from '../utils/csvParser';
 
 const ProspectsPage: React.FC = () => {
   const navigate = useNavigate();
@@ -23,12 +23,9 @@ const ProspectsPage: React.FC = () => {
   const { prospects, isLoading, error, mutate: mutateProspects } = useProspects();
   
   // Mutation hooks
-  const { trigger: createProspect } = useCreateProspect();
-  const { trigger: updateProspect } = useSWRMutation('/prospects/update-prospect', 'PUT', {
-    invalidateQueries: ['/prospects/list-prospects']
-  });
-  const { trigger: deleteProspect } = useSWRMutation('/prospects/delete-prospect', 'DELETE', {
-    invalidateQueries: ['/prospects/list-prospects']
+  const { trigger: updateProspect } = useUpdateProspect();
+  const { trigger: deleteProspect } = useSWRMutation('/prospects-delete-prospect', 'DELETE', {
+    invalidateQueries: ['/prospects-list-prospects']
   });
 
   // TODO: Re-enable when campaigns/advanced endpoint is fixed
@@ -39,11 +36,9 @@ const ProspectsPage: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedProspects, setSelectedProspects] = useState<string[]>([]);
   const [filters, setFilters] = useState<{ status?: string }>({});
-  const [showEditProspectModal, setShowEditProspectModal] = useState(false);
   const [showCSVUpload, setShowCSVUpload] = useState(false);
   const [showAddToCampaignModal, setShowAddToCampaignModal] = useState(false);
   const [showUpdateStatusModal, setShowUpdateStatusModal] = useState(false);
-  const [editingProspect, setEditingProspect] = useState<Prospect | null>(null);
   const [updatingStatusProspect, setUpdatingStatusProspect] = useState<Prospect | null>(null);
   const [selectedCampaign, setSelectedCampaign] = useState<string>('');
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -67,7 +62,7 @@ const ProspectsPage: React.FC = () => {
       filtered = filtered.filter(p =>
         p.name.toLowerCase().includes(query) ||
         p.email.toLowerCase().includes(query) ||
-        p.company.toLowerCase().includes(query) ||
+        p.company?.toLowerCase().includes(query) ||
         (p.title && p.title.toLowerCase().includes(query))
       );
     }
@@ -117,68 +112,7 @@ const ProspectsPage: React.FC = () => {
   };
 
   
-  const handleEditProspect = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    if (!editingProspect || !authState.user?.id) return;
-
-    const formData = new FormData(e.currentTarget);
-    
-    const updates = {
-      name: formData.get('name') as string,
-      email: formData.get('email') as string,
-      company: formData.get('company') as string,
-      title: formData.get('title') as string,
-      website: formData.get('website') as string,
-      phoneNumber: formData.get('phone') as string,
-      industry: formData.get('industry') as string,
-      location: formData.get('location') as string,
-      linkedinProfile: formData.get('linkedinProfile') as string,
-      tags: (formData.get('tags') as string)?.split(',').map(tag => tag.trim()).filter(tag => tag) || [],
-      notes: formData.get('notes') as string,
-    };
-
-    try {
-      // 1. Create updated version
-      const updatedProspect = {
-        ...editingProspect,
-        ...updates,
-        updatedAt: new Date().toISOString()
-      };
-      
-      // 2. Optimistically update UI
-      mutateProspects(
-        (current: any) => ({
-          ...current,
-          prospects: current.prospects.map((p: any) => 
-            p.id === editingProspect.id ? updatedProspect : p
-          )
-        }),
-        false
-      );
-      
-      // 3. Close modal immediately
-      setShowEditProspectModal(false);
-      setEditingProspect(null);
-      
-      // 4. Make API call
-      await updateProspect({
-        id: editingProspect.id,
-        ...updates,
-        userId: authState.user.id
-      });
-      
-      // 5. Silently revalidate
-      await mutateProspects();
-      
-      showToast('Prospect updated successfully!', 'success');
-    } catch (error) {
-      showToast(error instanceof Error ? error.message : 'Failed to update prospect', 'error');
-      mutateProspects(); // Rollback
-    }
-  };
-
   const handleEditProspectClick = (lead: Prospect) => {
-    // Navigate to the edit page instead of opening a modal
     navigate(`/dashboard/prospects/${lead.id}/edit`);
   };
 
@@ -239,36 +173,36 @@ const ProspectsPage: React.FC = () => {
         status: newStatus,
         updatedAt: new Date().toISOString()
       };
-      
+
       // 2. Optimistically update UI
       mutateProspects(
         (current: any) => ({
           ...current,
-          prospects: current.prospects.map((p: any) => 
+          prospects: current.prospects.map((p: any) =>
             p.id === updatingStatusProspect.id ? updatedProspect : p
           )
         }),
-        false
+        false // CRITICAL: false prevents immediate revalidation
       );
-      
-      // 3. Close modal immediately
+
+      // 3. Close modal immediately (instant feedback)
       setShowUpdateStatusModal(false);
       setUpdatingStatusProspect(null);
-      
-      // 4. Make API call
+
+      // 4. Make API call in background AND WAIT FOR IT TO COMPLETE
       await updateProspect({
         id: updatingStatusProspect.id,
         status: newStatus,
         userId: authState.user.id
       });
-      
-      // 5. Silently revalidate
+
+      // 5. ONLY REVALIDATE AFTER API CALL SUCCEEDS
       await mutateProspects();
-      
+
       showToast(`Prospect status updated to ${newStatus}`, 'success');
     } catch (error) {
       showToast(error instanceof Error ? error.message : 'Failed to update status', 'error');
-      mutateProspects(); // Rollback
+      mutateProspects(); // Rollback optimistic update
     }
   };
 
@@ -406,45 +340,7 @@ const ProspectsPage: React.FC = () => {
     });
   };
 
-  const parseCSV = (csvText: string): any[] => {
-    const lines = csvText.split('\n').filter(line => line.trim());
-    if (lines.length < 2) return [];
-
-    const headers = lines[0].split(',').map(h => h.trim().toLowerCase().replace(/[^a-z0-9]/g, ''));
-    const prospects: any[] = [];
-
-    for (let i = 1; i < lines.length; i++) {
-      const values = lines[i].split(',').map(v => v.trim().replace(/^"|"$/g, ''));
-      const prospect: any = {};
-
-      headers.forEach((header, index) => {
-        const value = values[index];
-        if (!value) return;
-
-        // Map CSV headers to prospect fields
-        if (header === 'name') prospect.name = value;
-        else if (header === 'email') prospect.email = value;
-        else if (header === 'company') prospect.company = value;
-        else if (header === 'title') prospect.title = value;
-        else if (header === 'website') prospect.website = value;
-        else if (header === 'phonenumber' || header === 'phone') prospect.phoneNumber = value;
-        else if (header === 'industry') prospect.industry = value;
-        else if (header === 'location') prospect.location = value;
-        else if (header === 'linkedinprofile' || header === 'linkedin') prospect.linkedinProfile = value;
-        else if (header === 'notes') prospect.notes = value;
-        else if (header === 'tags') prospect.tags = value.split(';').map((t: string) => t.trim()).filter(Boolean);
-        else if (header === 'source') prospect.source = value;
-      });
-
-      // Only add if required fields are present
-      if (prospect.name && prospect.email && prospect.company) {
-        prospects.push(prospect);
-      }
-    }
-
-    return prospects;
-  };
-
+  
   const handleCSVUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -457,7 +353,24 @@ const ProspectsPage: React.FC = () => {
     try {
       // Read CSV file
       const text = await file.text();
-      const parsedProspects = parseCSV(text);
+
+      if (!text || text.trim() === '') {
+        showToast('CSV file is empty', 'error');
+        setShowCSVUpload(false);
+        if (fileInputRef.current) fileInputRef.current.value = '';
+        return;
+      }
+
+      let parsedProspects;
+      try {
+        parsedProspects = parseCSV(text);
+      } catch (parseError) {
+        console.error('CSV parsing error:', parseError);
+        showToast('Failed to parse CSV file. Please check the file format.', 'error');
+        setShowCSVUpload(false);
+        if (fileInputRef.current) fileInputRef.current.value = '';
+        return;
+      }
 
       if (parsedProspects.length === 0) {
         showToast('No valid prospects found in CSV file', 'warning');
@@ -466,12 +379,36 @@ const ProspectsPage: React.FC = () => {
         return;
       }
 
+      // Validate prospects on client side
+      let validation;
+      try {
+        validation = validateProspects(parsedProspects);
+      } catch (validationError) {
+        console.error('Validation error:', validationError);
+        showToast('Error validating prospects. Please check your data format.', 'error');
+        setShowCSVUpload(false);
+        if (fileInputRef.current) fileInputRef.current.value = '';
+        return;
+      }
+
+      if (validation.valid.length === 0) {
+        showToast('No valid prospects found. Please check your CSV file for required fields (Name, Email, Company).', 'error');
+        setShowCSVUpload(false);
+        if (fileInputRef.current) fileInputRef.current.value = '';
+        return;
+      }
+
+      // Show warning for invalid records but continue with valid ones
+      if (validation.invalid.length > 0) {
+        showToast(`Found ${validation.invalid.length} invalid records that will be skipped. Continuing with ${validation.valid.length} valid prospects.`, 'warning');
+      }
+
       // Close modal and show processing toast
       setShowCSVUpload(false);
-      showToast(`Processing ${parsedProspects.length} prospects...`, 'info');
+      showToast(`Processing ${validation.valid.length} prospects...`, 'info');
 
-      // 1. Create optimistic prospects with temp IDs
-      const optimisticProspects = parsedProspects.map((p, index) => ({
+      // 1. Create optimistic prospects with temp IDs (only for valid ones)
+      const optimisticProspects = validation.valid.map((p, index) => ({
         id: `temp-import-${Date.now()}-${index}`,
         name: p.name,
         email: p.email,
@@ -484,9 +421,9 @@ const ProspectsPage: React.FC = () => {
         linkedinProfile: p.linkedinProfile || null,
         notes: p.notes || null,
         tags: p.tags || [],
-        source: p.source || 'csv_import',
+        source: p.source || 'CSV Import',
         status: 'NEW' as ProspectStatus,
-        isOptedOut: false,
+        isOptedOut: p.isOptedOut || false,
         createdBy: authState.user!.id,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
@@ -507,33 +444,104 @@ const ProspectsPage: React.FC = () => {
         false
       );
 
-      // 3. Make API call in background
-      const response = await post('/prospects-import-csv', {
-        userId: authState.user.id,
-        prospects: parsedProspects
-      });
+      // 3. Upload prospects individually with real-time progress reporting
+      const results = {
+        imported: 0,
+        duplicates: 0,
+        errors: 0,
+        total: validation.valid.length
+      };
 
-      // 4. Silently replace temp IDs with real IDs from API response
-      await globalMutate(
-        (key) => Array.isArray(key) && key[0] === '/prospects-list-prospects',
-        (current: any) => {
-          if (!current) return current;
-          
-          // Remove all temp prospects and add real ones
-          const withoutTemp = current.prospects.filter(
-            (p: any) => !p.id.startsWith('temp-import-')
-          );
-          
-          return {
-            ...current,
-            prospects: [...response.imported, ...withoutTemp]
+      let currentIndex = 0;
+
+      for (const prospect of validation.valid) {
+        try {
+          currentIndex++;
+
+          // Show progress update
+          showToast(`Uploading prospect ${currentIndex} of ${validation.valid.length}...`, 'info');
+
+          // Use the existing create prospect hook
+          const createData = {
+            ...prospect,
+            userId: authState.user!.id
           };
-        },
-        { revalidate: false }
-      );
 
-      // 5. Show success message
-      showToast(response.message || 'Import completed successfully!', 'success');
+          // Call the create prospect endpoint directly
+          const response = await post('/prospects-create-prospect', createData);
+
+          if (response.prospect) {
+            results.imported++;
+            // Update the global cache to replace temp prospect with real one
+            await globalMutate(
+              (key: any) => Array.isArray(key) && key[0] === '/prospects-list-prospects',
+              (current: any) => {
+                if (!current) return current;
+
+                // Find and replace the temp prospect with the real one
+                return {
+                  ...current,
+                  prospects: current.prospects.map((p: any) =>
+                    p.name === prospect.name && p.email === prospect.email && p.id.startsWith('temp-import-')
+                      ? { ...response.prospect, _count: p._count }
+                      : p
+                  )
+                };
+              },
+              { revalidate: false }
+            );
+          }
+
+        } catch (error: any) {
+          console.error(`Error uploading prospect ${currentIndex}:`, error);
+
+          // Check if it's a duplicate error
+          if (error.status === 409 || error.message?.includes('already exists')) {
+            results.duplicates++;
+            // Remove the temp prospect from the UI
+            await globalMutate(
+              (key: any) => Array.isArray(key) && key[0] === '/prospects-list-prospects',
+              (current: any) => {
+                if (!current) return current;
+                return {
+                  ...current,
+                  prospects: current.prospects.filter((p: any) =>
+                    !(p.name === prospect.name && p.email === prospect.email && p.id.startsWith('temp-import-'))
+                  )
+                };
+              },
+              { revalidate: false }
+            );
+          } else {
+            results.errors++;
+            // Remove the temp prospect from the UI
+            await globalMutate(
+              (key: any) => Array.isArray(key) && key[0] === '/prospects-list-prospects',
+              (current: any) => {
+                if (!current) return current;
+                return {
+                  ...current,
+                  prospects: current.prospects.filter((p: any) =>
+                    !(p.name === prospect.name && p.email === prospect.email && p.id.startsWith('temp-import-'))
+                  )
+                };
+              },
+              { revalidate: false }
+            );
+          }
+        }
+
+        // Small delay between requests to prevent overwhelming the server
+        await new Promise(resolve => setTimeout(resolve, 100));
+      }
+
+      // 4. Show final success message with detailed results
+      let message = `Upload complete! `;
+      if (results.imported > 0) message += `${results.imported} imported`;
+      if (results.duplicates > 0) message += `${results.imported > 0 ? ', ' : ''}${results.duplicates} duplicates`;
+      if (results.errors > 0) message += `${results.imported > 0 || results.duplicates > 0 ? ', ' : ''}${results.errors} errors`;
+
+      showToast(message, results.errors === 0 ? 'success' : 'warning');
       
     } catch (error) {
       showToast(error instanceof Error ? error.message : 'Upload failed', 'error');
@@ -702,37 +710,21 @@ const ProspectsPage: React.FC = () => {
 
 
   const handleDownloadTemplateCSV = () => {
-    // Create CSV template with headers only (no records)
-    const csvHeaders = [
-      'Name',
-      'Email',
-      'Company',
-      'Title',
-      'Website',
-      'Industry',
-      'LinkedIn Profile',
-      'Phone Number',
-      'Location',
-      'Notes',
-      'Tags',
-      'Source'
-    ];
-
-    // Create CSV content with headers only
-    const csvContent = csvHeaders.join(',');
+    // Generate CSV template using utility
+    const csvContent = generateCSVTemplate();
 
     // Create blob and download
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
     const url = URL.createObjectURL(blob);
-    
+
     link.setAttribute('href', url);
     link.setAttribute('download', 'prospects_template.csv');
     link.style.visibility = 'hidden';
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-    
+
     showToast('Template CSV downloaded successfully!', 'success');
   };
 
@@ -887,177 +879,7 @@ const ProspectsPage: React.FC = () => {
         </div>
       </div>
 
-      
-      {/* Edit Prospect Modal */}
-      {showEditProspectModal && editingProspect && (
-        <ModalWrapper
-          isOpen={showEditProspectModal}
-          onClose={() => {
-            setShowEditProspectModal(false);
-            setEditingProspect(null);
-          }}
-          maxWidth="max-w-md"
-        >
-          <div className="bg-surface rounded-xl p-6 max-w-md w-full mx-4 border border-border">
-            <h3 className="text-lg font-semibold text-text-primary mb-4">Edit Prospect</h3>
-            <form onSubmit={handleEditProspect}>
-              <div className="space-y-4 max-h-96 overflow-y-auto">
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-text-primary mb-1">Name *</label>
-                    <input
-                      name="name"
-                      type="text"
-                      required
-                      defaultValue={editingProspect.name}
-                      className="w-full px-3 py-2 bg-bg-secondary border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
-                      placeholder="John Doe"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-text-primary mb-1">Email *</label>
-                    <input
-                      name="email"
-                      type="email"
-                      required
-                      defaultValue={editingProspect.email}
-                      className="w-full px-3 py-2 bg-bg-secondary border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
-                      placeholder="john@example.com"
-                    />
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-text-primary mb-1">Company *</label>
-                    <input
-                      name="company"
-                      type="text"
-                      required
-                      defaultValue={editingProspect.company}
-                      className="w-full px-3 py-2 bg-bg-secondary border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
-                      placeholder="Acme Corp"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-text-primary mb-1">Title</label>
-                    <input
-                      name="title"
-                      type="text"
-                      defaultValue={editingProspect.title || ''}
-                      className="w-full px-3 py-2 bg-bg-secondary border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
-                      placeholder="CEO"
-                    />
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-text-primary mb-1">Website</label>
-                    <input
-                      name="website"
-                      type="url"
-                      defaultValue={editingProspect.website || ''}
-                      className="w-full px-3 py-2 bg-bg-secondary border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
-                      placeholder="https://example.com"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-text-primary mb-1">Phone</label>
-                    <input
-                      name="phone"
-                      type="tel"
-                      defaultValue={editingProspect.phoneNumber || ''}
-                      className="w-full px-3 py-2 bg-bg-secondary border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
-                      placeholder="+1 (555) 123-4567"
-                    />
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-text-primary mb-1">Industry</label>
-                    <select
-                      name="industry"
-                      defaultValue={editingProspect.industry || ''}
-                      className="w-full px-3 py-2 bg-bg-secondary border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
-                    >
-                      <option value="">Select industry...</option>
-                      <option value="Technology">Technology</option>
-                      <option value="Healthcare">Healthcare</option>
-                      <option value="Finance">Finance</option>
-                      <option value="Manufacturing">Manufacturing</option>
-                      <option value="Retail">Retail</option>
-                      <option value="Education">Education</option>
-                      <option value="Real Estate">Real Estate</option>
-                      <option value="Consulting">Consulting</option>
-                      <option value="Media">Media</option>
-                      <option value="Other">Other</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-text-primary mb-1">Location</label>
-                    <input
-                      name="location"
-                      type="text"
-                      defaultValue={editingProspect.location || ''}
-                      className="w-full px-3 py-2 bg-bg-secondary border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
-                      placeholder="New York, NY"
-                    />
-                  </div>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-text-primary mb-1">LinkedIn Profile</label>
-                  <input
-                    name="linkedinProfile"
-                    type="url"
-                    defaultValue={editingProspect.linkedinProfile || ''}
-                    className="w-full px-3 py-2 bg-bg-secondary border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
-                    placeholder="https://linkedin.com/in/johndoe"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-text-primary mb-1">Tags</label>
-                  <input
-                    name="tags"
-                    type="text"
-                    defaultValue={editingProspect.tags?.join(', ') || ''}
-                    className="w-full px-3 py-2 bg-bg-secondary border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
-                    placeholder="vip, enterprise, decision-maker (comma separated)"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-text-primary mb-1">Notes</label>
-                  <textarea
-                    name="notes"
-                    rows={3}
-                    defaultValue={editingProspect.notes || ''}
-                    className="w-full px-3 py-2 bg-bg-secondary border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
-                    placeholder="Additional notes about this prospect..."
-                  />
-                </div>
-              </div>
-              <div className="flex gap-2 mt-6">
-                <Button
-                  type="submit"
-                  className="flex-1"
-                >
-                  Update Prospect
-                </Button>
-                <Button
-                  variant="secondary"
-                  type="button"
-                  onClick={() => {
-                    setShowEditProspectModal(false);
-                    setEditingProspect(null);
-                  }}
-                  className="flex-1"
-                >
-                  Cancel
-                </Button>
-              </div>
-            </form>
-          </div>
-        </ModalWrapper>
-      )}
-
+  
       {/* CSV Upload Modal */}
       {showCSVUpload && (
         <ModalWrapper
@@ -1384,12 +1206,6 @@ const ProspectsPage: React.FC = () => {
                               <i className="fas fa-envelope text-slate-400 text-xs" />
                               <span className="truncate max-w-[200px]">{lead.email}</span>
                             </span>
-                            {lead.phoneNumber && (
-                              <span className="flex items-center gap-1.5">
-                                <i className="fas fa-phone text-slate-400 text-xs" />
-                                {lead.phoneNumber}
-                              </span>
-                            )}
                           </div>
                         </div>
                       </div>
@@ -1416,11 +1232,11 @@ const ProspectsPage: React.FC = () => {
                           onClick={() => handleOpenStatusModal(lead)}
                           disabled={lead.id.startsWith('temp-')}
                           className={`inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                            getStatusStyle(lead.status)
+                            getStatusStyle(lead.status || 'NEW')
                           } ${lead.id.startsWith('temp-') ? 'opacity-50 cursor-not-allowed' : 'hover:shadow-md cursor-pointer'}`}
                           title={lead.id.startsWith('temp-') ? 'Saving...' : 'Click to update status'}
                         >
-                          {lead.status.charAt(0).toUpperCase() + lead.status.slice(1).toLowerCase().replace('_', ' ')}
+                          {(lead.status || 'NEW').charAt(0).toUpperCase() + (lead.status || 'NEW').slice(1).toLowerCase().replace('_', ' ')}
                           {!lead.id.startsWith('temp-') && (
                             <i className="fas fa-chevron-down ml-1.5 text-xs opacity-60" />
                           )}
