@@ -115,7 +115,7 @@ const SequenceDetailsPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const location = useLocation();
-  const [activeTab, setActiveTab] = useState<'overview' | 'steps' | 'prospects' | 'settings'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'steps' | 'prospects' | 'settings'>('steps');
   const [editingStep, setEditingStep] = useState<CampaignStep | null>(null);
   const [isStepEditorOpen, setIsStepEditorOpen] = useState(false);
   
@@ -863,7 +863,6 @@ const SequenceDetailsPage: React.FC = () => {
                 <button
                   key={tab.id}
                   onClick={() => {
-                    console.log('Tab clicked:', tab.id);
                     setActiveTab(tab.id as any);
                   }}
                   className={`flex-1 flex items-center justify-center gap-2 px-4 py-4 text-sm font-medium transition-colors border-b-2 ${

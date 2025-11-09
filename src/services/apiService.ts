@@ -12,6 +12,22 @@ const getAuthToken = (): string | null => {
   return null;
 };
 
+// Get user ID from localStorage
+const getUserId = (): string | null => {
+  if (typeof window !== 'undefined') {
+    const userData = localStorage.getItem('user_data');
+    if (userData) {
+      try {
+        const user = JSON.parse(userData);
+        return user.id || user.neonId;
+      } catch (e) {
+        console.error('Failed to parse user data:', e);
+      }
+    }
+  }
+  return null;
+};
+
 // Generic API request function with authentication
 async function apiRequest(endpoint: string, options: RequestInit = {}): Promise<any> {
 
@@ -19,18 +35,38 @@ async function apiRequest(endpoint: string, options: RequestInit = {}): Promise<
   const isNetlifyFunction = endpoint.startsWith('/prospects') ||
                            endpoint.startsWith('/user-') ||
                            endpoint.startsWith('/templates') ||
-                           endpoint.startsWith('/password-');
+                           endpoint.startsWith('/password-') ||
+                           endpoint.startsWith('/campaigns/') ||
+                           endpoint.startsWith('/campaigns-');
+
+  // Convert /campaigns/advanced to /campaigns-advanced for Netlify function naming
+  let functionEndpoint = endpoint.replace('/campaigns/advanced', '/campaigns-advanced');
+  
+  // Handle other campaign endpoints that use hyphen naming
+  if (endpoint === '/campaigns-delete-campaign') {
+    functionEndpoint = '/campaigns-delete-campaign';
+  } else if (endpoint === '/campaigns-duplicate-campaign') {
+    functionEndpoint = '/campaigns-duplicate-campaign';
+  } else if (endpoint === '/campaigns-get-analytics') {
+    functionEndpoint = '/campaigns-get-analytics';
+  } else if (endpoint === '/campaigns-get-sequences') {
+    functionEndpoint = '/campaigns-get-sequences';
+  } else if (endpoint === '/campaigns-list-campaigns') {
+    functionEndpoint = '/campaigns-list-campaigns';
+  }
 
   const url = isNetlifyFunction
-    ? `${API_BASE_URL}/.netlify/functions${endpoint}`
+    ? `${API_BASE_URL}/.netlify/functions${functionEndpoint}`
     : `${API_BASE_URL}${endpoint}`;
 
   const token = getAuthToken();
+  const userId = getUserId();
 
   const config: RequestInit = {
     headers: {
       'Content-Type': 'application/json',
       ...(token && { 'Authorization': `Bearer ${token}` }),
+      ...(userId && { 'X-User-ID': userId }),
       ...options.headers,
     },
     ...options,
@@ -66,20 +102,37 @@ async function apiRequest(endpoint: string, options: RequestInit = {}): Promise<
 // Generic GET request
 export async function get(endpoint: string, params?: Record<string, any>): Promise<any> {
   let url = endpoint;
+  const searchParams = new URLSearchParams();
+
+  // Add userId to params for campaigns endpoints
+  const userId = getUserId();
+  if (userId && (endpoint.includes('/campaigns') || endpoint.includes('/user-'))) {
+    searchParams.append('userId', userId);
+  }
+
   if (params) {
-    const searchParams = new URLSearchParams();
     Object.entries(params).forEach(([key, value]) => {
       if (value !== undefined && value !== null) {
         searchParams.append(key, String(value));
       }
     });
+  }
+
+  if (searchParams.toString()) {
     url += `?${searchParams.toString()}`;
   }
+
   return apiRequest(url, { method: 'GET' });
 }
 
 // Generic POST request
 export async function post(endpoint: string, data: any): Promise<any> {
+  // Add userId to data for campaigns endpoints
+  const userId = getUserId();
+  if (userId && (endpoint.includes('/campaigns') || endpoint.includes('/user-'))) {
+    data = { ...data, userId };
+  }
+
   return apiRequest(endpoint, {
     method: 'POST',
     body: JSON.stringify(data),

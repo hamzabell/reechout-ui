@@ -62,6 +62,12 @@ const CampaignCard: React.FC<SequenceCardProps> = ({
           <div className="flex-1">
             <h3 className="text-xl font-semibold text-slate-900 mb-2 group-hover:text-blue-600 transition-colors">
               {campaign.name}
+              {/* Show saving indicator for optimistic items */}
+              {campaign.id.startsWith('temp-') && (
+                <span className="ml-2 text-xs text-primary font-normal">
+                  (Saving...)
+                </span>
+              )}
             </h3>
             <p className="text-sm text-slate-600 leading-relaxed line-clamp-2">
               {campaign.description || 'No description provided'}
@@ -80,25 +86,20 @@ const CampaignCard: React.FC<SequenceCardProps> = ({
               <div className="absolute right-0 top-8 w-48 bg-white rounded-xl border border-slate-200 shadow-lg z-10 py-2">
                 <button
                   onClick={() => { onEdit(campaign); setShowActions(false); }}
-                  className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 flex items-center transition-colors"
+                  disabled={campaign.id.startsWith('temp-')}
+                  className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 flex items-center transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  title={campaign.id.startsWith('temp-') ? 'Saving...' : 'Edit'}
                 >
                   <i className="fas fa-edit mr-3 text-slate-400" />
                   Edit
                 </button>
-                {(campaign.status === 'draft' || campaign.status === 'pending_approval') && (
-                  <button
-                    onClick={() => { onApprove(campaign); setShowActions(false); }}
-                    className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 flex items-center transition-colors"
-                  >
-                    <i className="fas fa-clipboard-check mr-3 text-amber-500" />
-                    Review Emails
-                  </button>
-                )}
                 
                 {(campaign.status === 'sending' || campaign.status === 'paused') && (
                   <button
                     onClick={() => { onPauseResume(campaign); setShowActions(false); }}
-                    className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 flex items-center transition-colors"
+                    disabled={campaign.id.startsWith('temp-')}
+                    className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 flex items-center transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    title={campaign.id.startsWith('temp-') ? 'Saving...' : campaign.status === 'paused' ? 'Resume' : 'Pause'}
                   >
                     <i className={`fas fa-${campaign.status === 'paused' ? 'play' : 'pause'} mr-3 text-orange-500`} />
                     {campaign.status === 'paused' ? 'Resume' : 'Pause'}
@@ -106,7 +107,9 @@ const CampaignCard: React.FC<SequenceCardProps> = ({
                 )}
                 <button
                   onClick={() => { onDuplicate(campaign); setShowActions(false); }}
-                  className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 flex items-center transition-colors"
+                  disabled={campaign.id.startsWith('temp-')}
+                  className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 flex items-center transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  title={campaign.id.startsWith('temp-') ? 'Saving...' : 'Duplicate'}
                 >
                   <i className="fas fa-copy mr-3 text-slate-400" />
                   Duplicate
@@ -114,7 +117,9 @@ const CampaignCard: React.FC<SequenceCardProps> = ({
                 <div className="border-t border-slate-100 my-1" />
                 <button
                   onClick={() => { onDelete(campaign.id); setShowActions(false); }}
-                  className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 flex items-center transition-colors"
+                  disabled={campaign.id.startsWith('temp-')}
+                  className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 flex items-center transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  title={campaign.id.startsWith('temp-') ? 'Saving...' : 'Delete'}
                 >
                   <i className="fas fa-trash mr-3" />
                   Delete

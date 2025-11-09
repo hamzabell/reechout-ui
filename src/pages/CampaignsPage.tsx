@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Campaign } from '../types';
 // import EmailApprovalDashboard from '../components/EmailApprovalDashboard';
@@ -8,180 +8,45 @@ import Button from '../components/Button';
 import { generateBlankSequenceId } from '../services/campaignUtils';
 import CampaignCard from '../components/sequences/CampaignCard';
 import SequencesStatsBar from '../components/sequences/SequencesStatsBar';
-import { useAlert } from '../hooks/useAlert';
+import DuplicateCampaignModal from '../components/DuplicateCampaignModal';
+import { useToast } from '../hooks/useToast';
 import { useConfirm } from '../hooks/useConfirm';
+import { useCampaigns, useDeleteCampaign, useDuplicateCampaign } from '../hooks/useCampaigns';
+import { useAuth } from '../hooks/useAuth';
 
 type ViewMode = 'overview' | 'create' | 'approval' | 'schedule' | 'details';
 
-// Mock campaign data
-const mockCampaigns: Campaign[] = [
-  {
-    id: '1',
-    name: 'Welcome Series',
-    description: 'Onboarding sequence for new subscribers',
-    status: 'sending',
-    sent: 245,
-    opens: 186,
-    replies: 42,
-    replyRate: 17.1,
-    prospects: ['prospect_1', 'prospect_2', 'prospect_3', 'prospect_4', 'prospect_5'],
-    templateId: 'template_1',
-    settings: {
-      sendImmediately: false,
-      scheduledDate: '2024-01-15T10:00:00Z',
-      dailyLimit: 50,
-      sendTime: '09:00',
-      timezone: 'America/New_York',
-      enableFollowUps: true,
-      followUpDelay: 3,
-      trackOpens: true,
-      trackClicks: true,
-      personalizationLevel: 'ai-powered',
-    },
-    createdAt: '2024-01-15T10:00:00Z',
-    updatedAt: '2024-01-15T10:00:00Z',
-    createdBy: 'user_1',
-    startDate: '2024-01-15T10:00:00Z',
-  },
-  {
-    id: '2',
-    name: 'Product Launch',
-    description: 'Announcing our latest features',
-    status: 'scheduled',
-    sent: 0,
-    opens: 0,
-    replies: 0,
-    replyRate: 0,
-    prospects: ['prospect_6', 'prospect_7', 'prospect_8'],
-    templateId: 'template_2',
-    settings: {
-      sendImmediately: false,
-      scheduledDate: '2024-01-20T14:30:00Z',
-      dailyLimit: 100,
-      sendTime: '10:00',
-      timezone: 'America/New_York',
-      enableFollowUps: true,
-      followUpDelay: 2,
-      trackOpens: true,
-      trackClicks: true,
-      personalizationLevel: 'advanced',
-    },
-    createdAt: '2024-01-14T14:30:00Z',
-    updatedAt: '2024-01-14T14:30:00Z',
-    createdBy: 'user_1',
-    scheduledDate: '2024-01-20T14:30:00Z',
-  },
-  {
-    id: '3',
-    name: 'Re-engagement Sequence',
-    description: 'Bring back inactive users',
-    status: 'completed',
-    sent: 512,
-    opens: 298,
-    replies: 87,
-    replyRate: 17.0,
-    prospects: ['prospect_9', 'prospect_10', 'prospect_11', 'prospect_12'],
-    templateId: 'template_3',
-    settings: {
-      sendImmediately: true,
-      dailyLimit: 75,
-      sendTime: '11:00',
-      timezone: 'America/New_York',
-      enableFollowUps: false,
-      trackOpens: true,
-      trackClicks: true,
-      personalizationLevel: 'basic',
-    },
-    createdAt: '2024-01-10T09:15:00Z',
-    updatedAt: '2024-01-12T16:45:00Z',
-    createdBy: 'user_1',
-    startDate: '2024-01-10T09:15:00Z',
-    completedDate: '2024-01-12T16:45:00Z',
-  },
-  {
-    id: '4',
-    name: 'Newsletter January',
-    description: 'Monthly newsletter and updates',
-    status: 'draft',
-    sent: 0,
-    opens: 0,
-    replies: 0,
-    replyRate: 0,
-    prospects: ['prospect_13', 'prospect_14', 'prospect_15'],
-    templateId: 'template_4',
-    settings: {
-      sendImmediately: false,
-      scheduledDate: '2024-01-25T11:20:00Z',
-      dailyLimit: 200,
-      sendTime: '09:30',
-      timezone: 'America/New_York',
-      enableFollowUps: false,
-      trackOpens: true,
-      trackClicks: true,
-      personalizationLevel: 'basic',
-    },
-    createdAt: '2024-01-13T11:20:00Z',
-    updatedAt: '2024-01-13T11:20:00Z',
-    createdBy: 'user_1',
-  },
-  {
-    id: '5',
-    name: 'Holiday Promotion',
-    description: 'Special offers for the holiday season',
-    status: 'paused',
-    sent: 128,
-    opens: 94,
-    replies: 21,
-    replyRate: 16.4,
-    prospects: ['prospect_16', 'prospect_17', 'prospect_18', 'prospect_19'],
-    templateId: 'template_5',
-    settings: {
-      sendImmediately: true,
-      dailyLimit: 60,
-      sendTime: '14:00',
-      timezone: 'America/New_York',
-      enableFollowUps: true,
-      followUpDelay: 5,
-      trackOpens: true,
-      trackClicks: true,
-      personalizationLevel: 'advanced',
-    },
-    createdAt: '2024-01-08T16:00:00Z',
-    updatedAt: '2024-01-11T13:30:00Z',
-    createdBy: 'user_1',
-    startDate: '2024-01-08T16:00:00Z',
-  },
-];
+
 
 const SequencesPage: React.FC = () => {
   const navigate = useNavigate();
   const [viewMode, setViewMode] = useState<ViewMode>('overview');
   const [selectedSequenceId, setSelectedSequenceId] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState<string>('');
+  const [duplicateModalOpen, setDuplicateModalOpen] = useState(false);
+  const [campaignToDuplicate, setCampaignToDuplicate] = useState<Campaign | null>(null);
   
-  // Hooks for modals
-  const { showSuccess } = useAlert();
+  // Hooks for toasts
+  const { showToast } = useToast();
   const { confirmWarning } = useConfirm();
+  const { user } = useAuth();
 
-  // Use mock data instead of API calls
-  const sequences = mockCampaigns;
+  // Fetch campaigns using real API
+  const { campaigns, total, isLoading, error, mutate: mutateCampaigns } = useCampaigns({
+    search: searchTerm,
+    limit: 50,
+    offset: 0
+  });
+
+  // Mutation hooks
+  const { trigger: deleteCampaign } = useDeleteCampaign();
+  const { trigger: duplicateCampaign } = useDuplicateCampaign();
+
+  const sequences = campaigns;
   const selectedSequence = sequences.find(s => s.id === selectedSequenceId) || null;
 
-  // Filter sequences based on search term
-  const filteredSequences = useMemo(() => {
-    let filtered = [...sequences];
-
-    // Search filter
-    if (searchTerm) {
-      const searchLower = searchTerm.toLowerCase();
-      filtered = filtered.filter(sequence =>
-        sequence.name.toLowerCase().includes(searchLower) ||
-        (sequence.description && sequence.description.toLowerCase().includes(searchLower))
-      );
-    }
-
-    return filtered;
-  }, [sequences, searchTerm]);
+  // Sequences are already filtered by the API
+  const filteredSequences = sequences;
 
   const handleCreateSequence = () => {
     const newSequenceId = generateBlankSequenceId();
@@ -192,36 +57,142 @@ const SequencesPage: React.FC = () => {
     setSelectedSequenceId(sequence.id);
   }, []);
 
-  const handleDeleteSequence = useCallback((sequenceId: string) => {
+  const handleDeleteSequence = useCallback(async (sequenceId: string) => {
+    if (!user?.id) {
+      showToast('User not authenticated', 'error');
+      return;
+    }
+
     confirmWarning({
-      title: 'Delete Sequence',
-      message: 'Are you sure you want to delete this sequence? This is a demo version - no actual data will be deleted.',
-      onConfirm: () => {
-        showSuccess('Sequence deleted successfully (demo mode)');
-        if (selectedSequenceId === sequenceId) {
-          setSelectedSequenceId(null);
-          setViewMode('overview');
+      title: 'Delete Campaign',
+      message: 'Are you sure you want to delete this campaign? This action cannot be undone.',
+      onConfirm: async () => {
+        try {
+          // 1. Optimistically remove from UI
+          mutateCampaigns(
+            (current: any) => {
+              if (!current || !current.campaigns) return current;
+              return {
+                ...current,
+                campaigns: current.campaigns.filter((c: Campaign) => c.id !== sequenceId)
+              };
+            },
+            false // CRITICAL: false prevents immediate revalidation
+          );
+          
+          // 2. Make API call in background
+          await deleteCampaign({
+            campaignId: sequenceId,
+            userId: user.id
+          });
+          
+          // 3. Silently revalidate to ensure consistency
+          mutateCampaigns();
+          
+          // 4. Show success notification
+          showToast('Campaign deleted successfully!', 'success');
+          
+          // 5. Clear selection if this was the selected sequence
+          if (selectedSequenceId === sequenceId) {
+            setSelectedSequenceId(null);
+            setViewMode('overview');
+          }
+          
+        } catch (error: any) {
+          // 5. Show error and revalidate to rollback optimistic update
+          showToast(error?.message || 'Failed to delete campaign', 'error');
+          mutateCampaigns(); // Rollback by revalidating
         }
       }
     });
-  }, [selectedSequenceId, confirmWarning, showSuccess]);
+  }, [user, selectedSequenceId, confirmWarning, showToast, deleteCampaign, mutateCampaigns]);
 
-  const handleDuplicateSequence = useCallback((sequence: Campaign) => {
-    const newName = window.prompt('Enter a name for the duplicated sequence:', `${sequence.name} (Copy)`);
-    if (newName) {
-      // Frontend-only - just show a success message
-      showSuccess('Sequence duplicated successfully (demo mode)');
+  const handleDuplicateSequence = useCallback(async (sequence: Campaign) => {
+    if (!user?.id) {
+      showToast('User not authenticated', 'error');
+      return;
     }
-  }, [showSuccess]);
+
+    // Open the duplicate modal instead of using browser alert
+    setCampaignToDuplicate(sequence);
+    setDuplicateModalOpen(true);
+  }, [user, showToast]);
+
+  const handleDuplicateConfirm = useCallback(async (name: string) => {
+    if (!user?.id || !campaignToDuplicate) return;
+
+    try {
+      // 1. Create optimistic duplicate with temp ID
+      const optimisticCampaign = {
+        ...campaignToDuplicate,
+        id: `temp-dup-${Date.now()}`,
+        name: name,
+        status: 'draft',
+        sent: 0,
+        opens: 0,
+        replies: 0,
+        replyRate: 0,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        totalProspects: campaignToDuplicate.prospects?.length || 0,
+        openRate: 0,
+        clickRate: 0,
+        deliveredRate: 0
+      };
+      
+      // 2. Optimistically add to UI (false = don't revalidate)
+      mutateCampaigns(
+        (current: any) => {
+          if (!current) {
+            return {
+              campaigns: [optimisticCampaign],
+              total: 1,
+              hasMore: false
+            };
+          }
+          return {
+            ...current,
+            campaigns: [optimisticCampaign, ...(current?.campaigns || [])]
+          };
+        },
+        false // CRITICAL: false prevents immediate revalidation
+      );
+      
+      // 3. Close modal immediately
+      setDuplicateModalOpen(false);
+      setCampaignToDuplicate(null);
+      
+      // 4. Make API call in background
+      await duplicateCampaign({
+        campaignId: campaignToDuplicate.id,
+        userId: user.id,
+        name: name
+      });
+      
+      console.log('Duplicate API call completed successfully');
+      
+      // 5. Silently revalidate to replace temp ID with real ID
+      await mutateCampaigns();
+      
+      // 6. Show success notification
+      showToast('Campaign duplicated successfully!', 'success');
+      
+    } catch (error: any) {
+      // 7. Show error and revalidate to rollback optimistic update
+      console.error('Campaign duplication error:', error);
+      showToast(error?.message || 'Failed to duplicate campaign', 'error');
+      mutateCampaigns(); // Rollback by revalidating
+    }
+  }, [user, campaignToDuplicate, showToast, duplicateCampaign, mutateCampaigns]);
 
   const handlePauseResumeSequence = useCallback((sequence: Campaign) => {
     // Frontend-only - just show an info message
     if (sequence.status === 'paused') {
-      showSuccess('Sequence resumed (demo mode)');
+      showToast('Sequence resumed (demo mode)', 'success');
     } else {
-      showSuccess('Sequence paused (demo mode)');
+      showToast('Sequence paused (demo mode)', 'success');
     }
-  }, [showSuccess]);
+  }, [showToast]);
 
 
   const getSequenceStats = () => {
@@ -242,7 +213,75 @@ const SequencesPage: React.FC = () => {
     return { total, active, completed, totalSent, avgReplyRate, avgOpenRate };
   };
 
-  // No loading or error states needed for frontend-only version
+  // Show loading state
+  if (isLoading) {
+    return (
+      <div className="space-y-8 animate-fade-in">
+        <div className="flex items-center justify-between">
+          <div>
+            <input
+              type="text"
+              placeholder="Search sequences..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="input-field w-64"
+            />
+          </div>
+          <button onClick={handleCreateSequence} className="btn-primary">
+            <i className="fas fa-plus mr-2" />
+            Create Sequence
+          </button>
+        </div>
+        
+        <div className="flex items-center justify-center py-12">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+          <span className="ml-3 text-text-secondary">Loading sequences...</span>
+        </div>
+      </div>
+    );
+  }
+
+  // Show error state
+  if (error) {
+    return (
+      <div className="space-y-8 animate-fade-in">
+        <div className="flex items-center justify-between">
+          <div>
+            <input
+              type="text"
+              placeholder="Search sequences..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="input-field w-64"
+            />
+          </div>
+          <button onClick={handleCreateSequence} className="btn-primary">
+            <i className="fas fa-plus mr-2" />
+            Create Sequence
+          </button>
+        </div>
+        
+        <div className="card p-12 text-center">
+          <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+            <i className="fas fa-exclamation-triangle text-red-600 text-2xl" />
+          </div>
+          <h3 className="text-xl font-semibold text-text-primary mb-2">
+            Error Loading Sequences
+          </h3>
+          <p className="text-text-secondary mb-6">
+            {error.message || 'Failed to load your sequences. Please try again.'}
+          </p>
+          <button 
+            onClick={() => window.location.reload()} 
+            className="btn-primary"
+          >
+            <i className="fas fa-redo mr-2" />
+            Try Again
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   // Render different views based on viewMode
   if (viewMode === 'approval' && selectedSequence) {
@@ -397,6 +436,19 @@ const SequencesPage: React.FC = () => {
             />
           ))}
         </div>
+      )}
+      
+      {/* Duplicate Campaign Modal */}
+      {campaignToDuplicate && (
+        <DuplicateCampaignModal
+          isOpen={duplicateModalOpen}
+          onClose={() => {
+            setDuplicateModalOpen(false);
+            setCampaignToDuplicate(null);
+          }}
+          onConfirm={handleDuplicateConfirm}
+          campaignName={campaignToDuplicate.name}
+        />
       )}
     </div>
   );

@@ -24,7 +24,7 @@ export interface CampaignsResponse {
 
 // Hook for fetching all campaigns
 export const useCampaigns = (filters?: CampaignFilters) => {
-  const { data, error, isLoading, isValidating } = useSWR<CampaignsResponse>(
+  const { data, error, isLoading, isValidating, mutate } = useSWR<CampaignsResponse>(
     ['/campaigns/advanced', filters],
     swrConfig
   );
@@ -155,13 +155,12 @@ export const useUpdateCampaign = (campaignId: string) => {
 
 // Hook for deleting campaigns
 export const useDeleteCampaign = () => {
-  return useOptimisticMutation(
-    '/campaigns',
-    'DELETE',
-    (campaignId: string) => (current: Campaign[]) =>
-      current.filter((campaign: Campaign) => campaign.id !== campaignId),
+  return useSWRMutation(
+    '/campaigns-delete-campaign',
+    'POST',
     {
-      invalidateQueries: ['campaigns', '/campaigns/advanced'],
+      invalidateQueries: ['/campaigns/advanced'],
+      showToast: false, // Handle manually in component
     }
   );
 };
@@ -169,10 +168,11 @@ export const useDeleteCampaign = () => {
 // Hook for duplicating campaigns
 export const useDuplicateCampaign = () => {
   return useSWRMutation(
-    '/campaigns',
+    '/campaigns-duplicate-campaign',
     'POST',
     {
-      invalidateQueries: ['campaigns', '/campaigns/advanced'],
+      invalidateQueries: ['/campaigns/advanced'],
+      showToast: false, // Handle manually in component
     }
   );
 };

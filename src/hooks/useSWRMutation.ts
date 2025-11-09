@@ -12,6 +12,7 @@ export const useSWRMutation = <TData = any, TVariables = any>(
     onError?: (error: Error, variables: TVariables, optimisticData?: any) => void;
     invalidateQueries?: string[]; // Query keys to invalidate after success
     optimisticUpdate?: (variables: TVariables) => any; // Function to create optimistic data
+    showToast?: boolean; // Whether to show automatic toast messages (default: true)
   }
 ) => {
   const [isMutating, setIsMutating] = useState(false);
@@ -55,13 +56,15 @@ export const useSWRMutation = <TData = any, TVariables = any>(
         options.onSuccess(response, variables, optimisticData);
       }
 
-      // Show success message for CRUD operations
-      if (method === 'POST') {
-        showToast('Created successfully', 'success');
-      } else if (method === 'PUT') {
-        showToast('Updated successfully', 'success');
-      } else if (method === 'DELETE') {
-        showToast('Deleted successfully', 'success');
+      // Show success message for CRUD operations (if not disabled)
+      if (options?.showToast !== false) {
+        if (method === 'POST') {
+          showToast('Created successfully', 'success');
+        } else if (method === 'PUT') {
+          showToast('Updated successfully', 'success');
+        } else if (method === 'DELETE') {
+          showToast('Deleted successfully', 'success');
+        }
       }
 
       return response;

@@ -143,6 +143,11 @@ export const NeonProvider: React.FC<NeonProviderProps> = ({ children }) => {
         const user = await mapNeonUserToAppUser(neonUser);
         console.log("Mapped user:", user);
 
+        // Store user data in localStorage for API service access
+        if (user && typeof window !== 'undefined') {
+          localStorage.setItem('user_data', JSON.stringify(user));
+        }
+
         updateAuthState({
           isAuthenticated: !!user,
           user,
@@ -185,6 +190,11 @@ export const NeonProvider: React.FC<NeonProviderProps> = ({ children }) => {
 
       const user = await mapNeonUserToAppUser(result.user);
       console.log("Mapped user after login:", user);
+
+      // Store user data in localStorage for API service access
+      if (user && typeof window !== 'undefined') {
+        localStorage.setItem('user_data', JSON.stringify(user));
+      }
 
       updateAuthState({
         isAuthenticated: !!user,
@@ -291,6 +301,12 @@ export const NeonProvider: React.FC<NeonProviderProps> = ({ children }) => {
   const logout = async (): Promise<void> => {
     try {
       await signOut();
+
+      // Clear user data from localStorage
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('user_data');
+      }
+
       updateAuthState({
         isAuthenticated: false,
         user: null,
@@ -298,6 +314,12 @@ export const NeonProvider: React.FC<NeonProviderProps> = ({ children }) => {
       });
     } catch (error: any) {
       console.error("Logout error:", error);
+
+      // Clear user data from localStorage even if error occurs
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('user_data');
+      }
+
       // Always set logged out state even if error occurs
       updateAuthState({
         isAuthenticated: false,

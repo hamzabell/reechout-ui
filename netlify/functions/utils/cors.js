@@ -4,12 +4,10 @@
  */
 
 const CORS_HEADERS = {
-  'Access-Control-Allow-Origin': process.env.NODE_ENV === 'development' || process.env.NETLIFY_DEV === 'true' || !process.env.NODE_ENV
-    ? '*' // Allow all origins in development
-    : 'https://your-production-domain.com',
+  'Access-Control-Allow-Origin': '*', // Allow all origins for development
   'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type, Authorization, Accept',
-  'Access-Control-Allow-Credentials': true
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization, Accept, X-User-ID',
+  'Access-Control-Allow-Credentials': 'true' // Changed to string for consistency
 };
 
 /**
@@ -20,13 +18,25 @@ const CORS_HEADERS = {
  */
 function addCorsHeaders(response = {}, event = null) {
   let origin = CORS_HEADERS['Access-Control-Allow-Origin'];
+  let credentials = CORS_HEADERS['Access-Control-Allow-Credentials'];
 
   // In development, allow the specific origin from the request
-  if (event && event.headers && event.headers.origin) {
-    const requestOrigin = event.headers.origin;
-    if (requestOrigin && requestOrigin.includes('localhost')) {
+  if (event && event.headers) {
+    const requestOrigin = event.headers.origin || event.headers.Origin;
+    if (requestOrigin && (requestOrigin.includes('localhost') || requestOrigin.includes('127.0.0.1'))) {
       origin = requestOrigin;
+      credentials = 'true'; // Allow credentials for specific origins
+    } else if (requestOrigin) {
+      // For production or specific origins, allow the specific origin
+      origin = requestOrigin;
+      credentials = 'true';
+    } else {
+      // If no origin, don't use credentials with wildcard
+      credentials = 'false';
     }
+  } else {
+    // When no event, disable credentials to allow wildcard origin
+    credentials = 'false';
   }
 
   return {
@@ -36,7 +46,7 @@ function addCorsHeaders(response = {}, event = null) {
       'Access-Control-Allow-Origin': origin,
       'Access-Control-Allow-Methods': CORS_HEADERS['Access-Control-Allow-Methods'],
       'Access-Control-Allow-Headers': CORS_HEADERS['Access-Control-Allow-Headers'],
-      'Access-Control-Allow-Credentials': CORS_HEADERS['Access-Control-Allow-Credentials']
+      'Access-Control-Allow-Credentials': credentials
     }
   };
 }
