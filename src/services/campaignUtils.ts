@@ -3,11 +3,21 @@
  */
 
 /**
- * Generates a unique blank sequence ID
- * @returns {string} A new sequence ID in the format seq_timestamp
+ * Generates a unique blank sequence ID using UUID v4
+ * @returns {string} A new sequence ID using UUID v4
  */
 export const generateBlankSequenceId = (): string => {
-  return `seq_${Date.now()}`;
+  // Use crypto.randomUUID which is the modern UUID v4 implementation
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+    return crypto.randomUUID();
+  }
+  
+  // Fallback for environments without crypto.randomUUID
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+    const r = Math.random() * 16 | 0;
+    const v = c === 'x' ? r : (r & 0x3 | 0x8);
+    return v.toString(16);
+  });
 };
 
 /**

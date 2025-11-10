@@ -30,6 +30,25 @@ export const swrPoster = async (url: string, { arg }: { arg: any }) => {
   }
 };
 
+// Specialized fetcher for sequence details that uses POST
+export const swrSequenceDetailsFetcher = async (key: string | [string, any]) => {
+  try {
+    let url: string;
+    let params: any = undefined;
+
+    if (Array.isArray(key)) {
+      [url, params] = key;
+    } else {
+      url = key;
+    }
+
+    const response = await post(url, params);
+    return response;
+  } catch (error) {
+    throw error;
+  }
+};
+
 // Fetcher function for PUT requests
 export const swrPutter = async (url: string, { arg }: { arg: any }) => {
   try {

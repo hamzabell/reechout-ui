@@ -6,7 +6,10 @@ const apiRequest = async (endpoint: string, options: RequestInit = {}) => {
   // For Netlify functions, we need to use the correct path format
   const isNetlifyFunction = endpoint.startsWith('/user-') ||
                            endpoint.startsWith('/prospects-') ||
-                           endpoint.startsWith('/templates-');
+                           endpoint.startsWith('/templates-') ||
+                           endpoint.startsWith('/campaigns-') ||
+                           endpoint.startsWith('/overview-') ||
+                           endpoint.startsWith('/auth-');
 
   // If the base URL already includes .netlify/functions, don't add it again
   const baseUrlIncludesFunctions = API_BASE_URL.includes('.netlify/functions');
@@ -82,6 +85,49 @@ export const userProfileApi = {
       body: JSON.stringify({ neonUserId }),
     });
     return data.userProfile;
+  },
+};
+
+// Campaigns API functions
+export const campaignsApi = {
+  // Create a new empty sequence
+  createSequence: async (userId: string, sequenceData?: any) => {
+    const data = await apiRequest("/campaigns-create-sequence", {
+      body: JSON.stringify({ userId, sequenceData }),
+    });
+    return data;
+  },
+
+  // Get sequence details by ID
+  getSequenceDetails: async (userId: string, sequenceId: string) => {
+    const data = await apiRequest("/campaigns-get-sequence-details", {
+      body: JSON.stringify({ userId, sequenceId }),
+    });
+    return data;
+  },
+
+  // List campaigns
+  listCampaigns: async (userId: string, filters?: any) => {
+    const data = await apiRequest("/campaigns-list-campaigns", {
+      body: JSON.stringify({ userId, ...filters }),
+    });
+    return data;
+  },
+
+  // Delete campaign
+  deleteCampaign: async (userId: string, campaignId: string) => {
+    const data = await apiRequest("/campaigns-delete-campaign", {
+      body: JSON.stringify({ userId, campaignId }),
+    });
+    return data;
+  },
+
+  // Duplicate campaign
+  duplicateCampaign: async (userId: string, campaignId: string, name: string) => {
+    const data = await apiRequest("/campaigns-duplicate-campaign", {
+      body: JSON.stringify({ userId, campaignId, name }),
+    });
+    return data;
   },
 };
 

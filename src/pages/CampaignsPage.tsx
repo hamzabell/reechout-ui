@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Campaign } from '../types';
 // import EmailApprovalDashboard from '../components/EmailApprovalDashboard';
@@ -11,7 +11,7 @@ import SequencesStatsBar from '../components/sequences/SequencesStatsBar';
 import DuplicateCampaignModal from '../components/DuplicateCampaignModal';
 import { useToast } from '../hooks/useToast';
 import { useConfirm } from '../hooks/useConfirm';
-import { useCampaigns, useDeleteCampaign, useDuplicateCampaign } from '../hooks/useCampaigns';
+import { useCampaigns, useDeleteCampaign, useDuplicateCampaign, useCreateSequence } from '../hooks/useCampaigns';
 import { useAuth } from '../hooks/useAuth';
 
 type ViewMode = 'overview' | 'create' | 'approval' | 'schedule' | 'details';
@@ -41,6 +41,7 @@ const SequencesPage: React.FC = () => {
   // Mutation hooks
   const { trigger: deleteCampaign } = useDeleteCampaign();
   const { trigger: duplicateCampaign } = useDuplicateCampaign();
+  const { trigger: createSequence, isMutating } = useCreateSequence();
 
   const sequences = campaigns;
   const selectedSequence = sequences.find(s => s.id === selectedSequenceId) || null;
@@ -48,9 +49,81 @@ const SequencesPage: React.FC = () => {
   // Sequences are already filtered by the API
   const filteredSequences = sequences;
 
-  const handleCreateSequence = () => {
-    const newSequenceId = generateBlankSequenceId();
-    navigate(`/dashboard/campaigns/${newSequenceId}`);
+  // Refresh campaigns list when component mounts or user returns to this page
+  useEffect(() => {
+    // Force a refresh to ensure we have the latest data
+    mutateCampaigns();
+  }, [mutateCampaigns]);
+
+  const handleCreateSequence = async () => {
+    if (!user?.id) {
+      showToast('User not authenticated', 'error');
+      return;
+    }
+
+    try {
+      // Create optimistic placeholder for immediate UI feedback
+      const tempSequenceId = `temp-${Date.now()}`;
+      const optimisticSequence = {
+        id: tempSequenceId,
+        name: 'New Sequence',
+        description: '',
+        status: 'draft',
+        sent: 0,
+        opens: 0,
+        replies: 0,
+        replyRate: 0,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        totalProspects: 0,
+        openRate: 0,
+        clickRate: 0,
+        deliveredRate: 0,
+        prospects: []
+      };
+
+      // Optimistically add to UI
+      mutateCampaigns(
+        (current: any) => {
+          if (!current || !current.campaigns) return current;
+          return {
+            ...current,
+            campaigns: [optimisticSequence, ...current.campaigns],
+            total: current.total + 1
+          };
+        },
+        false // Don't revalidate yet
+      );
+
+      // Create the sequence via API
+      const result = await createSequence({
+        userId: user.id,
+        sequenceData: {} // Use default empty sequence data
+      });
+
+      if (result?.sequenceId) {
+        // Navigate to the newly created sequence
+        navigate(`/dashboard/campaigns/${result.sequenceId}`);
+        showToast('New sequence created successfully!', 'success');
+        
+        // Force refresh the campaigns list to replace temp with real data
+        setTimeout(() => {
+          mutateCampaigns();
+        }, 100);
+      } else {
+        throw new Error('Failed to create sequence - no ID returned');
+      }
+    } catch (error: any) {
+      console.error('Error creating sequence:', error);
+      showToast(error?.message || 'Failed to create sequence', 'error');
+      
+      // Rollback optimistic update and revalidate
+      mutateCampaigns();
+      
+      // Fallback: generate a UUID and navigate anyway (for offline/demo mode)
+      const newSequenceId = generateBlankSequenceId();
+      navigate(`/dashboard/campaigns/${newSequenceId}`);
+    }
   };
 
   const handleSelectSequence = useCallback((sequence: Campaign) => {
@@ -227,10 +300,13 @@ const SequencesPage: React.FC = () => {
               className="input-field w-64"
             />
           </div>
-          <button onClick={handleCreateSequence} className="btn-primary">
-            <i className="fas fa-plus mr-2" />
+          <Button 
+            onClick={handleCreateSequence} 
+            loading={isMutating}
+            icon={<i className="fas fa-plus" />}
+          >
             Create Sequence
-          </button>
+          </Button>
         </div>
         
         <div className="flex items-center justify-center py-12">
@@ -255,10 +331,13 @@ const SequencesPage: React.FC = () => {
               className="input-field w-64"
             />
           </div>
-          <button onClick={handleCreateSequence} className="btn-primary">
-            <i className="fas fa-plus mr-2" />
+          <Button 
+            onClick={handleCreateSequence} 
+            loading={isMutating}
+            icon={<i className="fas fa-plus" />}
+          >
             Create Sequence
-          </button>
+          </Button>
         </div>
         
         <div className="card p-12 text-center">
@@ -269,15 +348,14 @@ const SequencesPage: React.FC = () => {
             Error Loading Sequences
           </h3>
           <p className="text-text-secondary mb-6">
-            {error.message || 'Failed to load your sequences. Please try again.'}
+            {typeof error === 'string' ? error : error?.message || 'Failed to load your sequences. Please try again.'}
           </p>
-          <button 
+          <Button 
             onClick={() => window.location.reload()} 
-            className="btn-primary"
+            icon={<i className="fas fa-redo" />}
           >
-            <i className="fas fa-redo mr-2" />
             Try Again
-          </button>
+          </Button>
         </div>
       </div>
     );
@@ -376,10 +454,13 @@ const SequencesPage: React.FC = () => {
             className="input-field w-64"
           />
         </div>
-        <button onClick={handleCreateSequence} className="btn-primary">
-          <i className="fas fa-plus mr-2" />
+        <Button 
+          onClick={handleCreateSequence} 
+          loading={isMutating}
+          icon={<i className="fas fa-plus" />}
+        >
           Create Sequence
-        </button>
+        </Button>
       </div>
 
       {/* Stats Bar */}
@@ -408,10 +489,13 @@ const SequencesPage: React.FC = () => {
             }
           </p>
           {!searchTerm && (
-            <button onClick={handleCreateSequence} className="btn-primary">
-              <i className="fas fa-plus mr-2" />
+            <Button 
+              onClick={handleCreateSequence} 
+              loading={isMutating}
+              icon={<i className="fas fa-plus" />}
+            >
               Create Your First Sequence
-            </button>
+            </Button>
           )}
         </div>
       ) : (

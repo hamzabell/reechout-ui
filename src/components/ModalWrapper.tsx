@@ -86,7 +86,7 @@ const ModalWrapper: React.FC<ModalWrapperProps> = ({
   onClose,
   children,
   className = "",
-  maxWidth = "max-w-4xl",
+  maxWidth = "max-w-lg",
   maxHeight = "max-h-[90vh]"
 }) => {
   const modalIdRef = useRef<string>('');
@@ -146,7 +146,7 @@ const ModalWrapper: React.FC<ModalWrapperProps> = ({
   if (!isOpen) return null;
 
   const modalContent = (
-    <AnimatePresence 
+    <AnimatePresence
       onExitComplete={() => {
         // Final cleanup after animation completes - ensure scroll is restored
         setTimeout(() => {
@@ -154,53 +154,93 @@ const ModalWrapper: React.FC<ModalWrapperProps> = ({
             console.log('🎬 Animation exit complete - final scroll restoration');
             manageBodyScroll(false);
             cleanupModalRoot();
-            
+
             // Force enable scrolling as a safety measure
             document.body.style.overflow = 'auto';
             document.documentElement.style.overflow = 'auto';
-            
+
             console.log('🔄 Final cleanup on exit complete');
           }
         }, 50);
       }}
     >
+      {/* Backdrop */}
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
-        className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4"
-        style={{ 
-          position: 'fixed', 
-          top: 0, 
-          left: 0, 
-          right: 0, 
+        className="fixed inset-0 bg-black/70 backdrop-blur-md"
+        style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
           bottom: 0,
           zIndex: 999999,
           pointerEvents: 'auto' // Enable pointer events for the backdrop
         }}
         onClick={onClose}
+      />
+
+      {/* Modal Content */}
+      <div
+        style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          zIndex: 1000000, // Higher z-index than backdrop
+          pointerEvents: 'none', // Disable pointer events for the container
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: '12px'
+        }}
       >
         <motion.div
-          initial={{ scale: 0.95, opacity: 0, y: 20 }}
+          initial={{ scale: 0.9, opacity: 0, y: 30 }}
           animate={{ scale: 1, opacity: 1, y: 0 }}
-          exit={{ scale: 0.95, opacity: 0, y: 20 }}
-          transition={{ type: "spring", stiffness: 300, damping: 30 }}
-          className={`bg-white rounded-2xl shadow-2xl w-full ${maxWidth} ${maxHeight} overflow-hidden border border-gray-200 ${className}`}
-          onClick={(e) => e.stopPropagation()}
-          style={{ 
-            maxHeight: '90vh', 
-            overflowY: 'auto',
-            pointerEvents: 'auto' // Enable pointer events for the modal content
+          exit={{ scale: 0.9, opacity: 0, y: 30 }}
+          transition={{
+            type: "spring",
+            stiffness: 400,
+            damping: 25,
+            mass: 0.8
           }}
+          className={`bg-white rounded-3xl shadow-2xl border border-gray-100 w-full ${maxWidth} ${maxHeight} overflow-hidden hide-scrollbar ${className}`}
+          style={{
+            maxHeight: '85vh',
+            overflowY: 'auto',
+            pointerEvents: 'auto', // Enable pointer events only for the modal content
+            boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25), 0 0 0 1px rgba(0, 0, 0, 0.05)',
+            // Hide scrollbar but keep functionality
+            scrollbarWidth: 'none', /* Firefox */
+            msOverflowStyle: 'none'  /* Internet Explorer 10+ */
+          }}
+          onClick={(e) => e.stopPropagation()}
         >
           {children}
         </motion.div>
-      </motion.div>
+      </div>
     </AnimatePresence>
   );
 
   // Get or create modal root and render content
   const modalRoot = getOrCreateModalRoot();
+
+  // Add CSS to hide scrollbar for WebKit browsers
+  if (typeof window !== 'undefined' && !document.getElementById('modal-scrollbar-styles')) {
+    const style = document.createElement('style');
+    style.id = 'modal-scrollbar-styles';
+    style.textContent = `
+      .hide-scrollbar::-webkit-scrollbar {
+        display: none;
+      }
+    `;
+    document.head.appendChild(style);
+  }
+
   return createPortal(modalContent, modalRoot);
 };
 

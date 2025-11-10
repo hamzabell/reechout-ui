@@ -82,20 +82,9 @@ const StepEditor: React.FC<StepEditorProps> = ({
     if (editedStep.taskAction) {
       const taskAction = editedStep.taskAction;
 
-      // Check if there's a description for the selected task type
-      const hasDescription =
-        (taskAction.taskType === 'linkedin' && taskAction.linkedinDescription) ||
-        (taskAction.taskType === 'whatsapp' && taskAction.whatsappDescription) ||
-        (taskAction.taskType === 'call' && taskAction.callDescription) ||
-        (taskAction.taskType === 'other' && taskAction.otherDescription);
-
-      if (!hasDescription) {
-        validationErrors.push('Task must have a description for the selected task type');
-      }
-
-      // If task type is 'other', check if there's a title
-      if (taskAction.taskType === 'other' && !taskAction.otherTitle) {
-        validationErrors.push('Custom task type must have a title');
+      // Check if there's a task description
+      if (!taskAction.otherDescription) {
+        validationErrors.push('Task must have a description');
       }
     }
 
@@ -111,8 +100,8 @@ const StepEditor: React.FC<StepEditorProps> = ({
       hasEmailAction: !!editedStep.emailAction,
       hasTaskAction: !!editedStep.taskAction,
       emailTemplate: editedStep.emailAction?.templateId ? 'Template' : 'Custom',
-      taskType: editedStep.taskAction?.taskType,
-      taskTitle: editedStep.taskAction?.otherTitle || editedStep.taskAction?.taskType
+      taskType: 'other',
+      taskTitle: 'Task'
     });
 
     onSave(editedStep);
@@ -145,7 +134,7 @@ const StepEditor: React.FC<StepEditorProps> = ({
         ? { ...prev.taskAction, ...updates }
         : {
             id: `task_${Date.now()}`,
-            taskType: 'linkedin',
+            taskType: 'other',
             enableEmailNotification: true,
             ...updates
           }
@@ -168,7 +157,7 @@ const StepEditor: React.FC<StepEditorProps> = ({
   const addTaskAction = () => {
     updateTaskAction({
       id: `task_${Date.now()}`,
-      taskType: 'linkedin',
+      taskType: 'other',
       enableEmailNotification: true,
     });
   };
@@ -176,8 +165,6 @@ const StepEditor: React.FC<StepEditorProps> = ({
   const removeTaskAction = () => {
     updateStep({ taskAction: undefined });
   };
-
-  if (!isOpen) return null;
 
   return (
     <ModalWrapper
@@ -388,99 +375,19 @@ const StepEditor: React.FC<StepEditorProps> = ({
 
               {editedStep.taskAction && (
                 <div className="p-4 space-y-4">
+
                   <div>
                     <label className="block text-xs font-medium text-gray-600 mb-1">
-                      Task Type *
+                      Task Description *
                     </label>
-                    <select
-                      value={editedStep.taskAction.taskType || 'linkedin'}
-                      onChange={(e) => updateTaskAction({ taskType: e.target.value as any })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
-                    >
-                      <option value="linkedin">LinkedIn</option>
-                      <option value="whatsapp">WhatsApp</option>
-                      <option value="call">Call</option>
-                      <option value="other">Other</option>
-                    </select>
+                    <textarea
+                      value={editedStep.taskAction.otherDescription || ''}
+                      onChange={(e) => updateTaskAction({ otherDescription: e.target.value })}
+                      placeholder="Describe the task to be performed..."
+                      rows={3}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm resize-none"
+                    />
                   </div>
-
-                  {/* LinkedIn Task Description */}
-                  {editedStep.taskAction.taskType === 'linkedin' && (
-                    <div>
-                      <label className="block text-xs font-medium text-gray-600 mb-1">
-                        LinkedIn Task Description *
-                      </label>
-                      <textarea
-                        value={editedStep.taskAction.linkedinDescription || ''}
-                        onChange={(e) => updateTaskAction({ linkedinDescription: e.target.value })}
-                        placeholder="Describe the LinkedIn task to be performed..."
-                        rows={3}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm resize-none"
-                      />
-                    </div>
-                  )}
-
-                  {/* WhatsApp Task Description */}
-                  {editedStep.taskAction.taskType === 'whatsapp' && (
-                    <div>
-                      <label className="block text-xs font-medium text-gray-600 mb-1">
-                        WhatsApp Task Description *
-                      </label>
-                      <textarea
-                        value={editedStep.taskAction.whatsappDescription || ''}
-                        onChange={(e) => updateTaskAction({ whatsappDescription: e.target.value })}
-                        placeholder="Describe the WhatsApp task to be performed..."
-                        rows={3}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm resize-none"
-                      />
-                    </div>
-                  )}
-
-                  {/* Call Task Description */}
-                  {editedStep.taskAction.taskType === 'call' && (
-                    <div>
-                      <label className="block text-xs font-medium text-gray-600 mb-1">
-                        Call Task Description *
-                      </label>
-                      <textarea
-                        value={editedStep.taskAction.callDescription || ''}
-                        onChange={(e) => updateTaskAction({ callDescription: e.target.value })}
-                        placeholder="Describe the call task to be performed..."
-                        rows={3}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm resize-none"
-                      />
-                    </div>
-                  )}
-
-                  {/* Other Task Type */}
-                  {editedStep.taskAction.taskType === 'other' && (
-                    <>
-                      <div>
-                        <label className="block text-xs font-medium text-gray-600 mb-1">
-                          Custom Task Title *
-                        </label>
-                        <input
-                          type="text"
-                          value={editedStep.taskAction.otherTitle || ''}
-                          onChange={(e) => updateTaskAction({ otherTitle: e.target.value })}
-                          placeholder="Enter custom task title..."
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-xs font-medium text-gray-600 mb-1">
-                          Custom Task Description *
-                        </label>
-                        <textarea
-                          value={editedStep.taskAction.otherDescription || ''}
-                          onChange={(e) => updateTaskAction({ otherDescription: e.target.value })}
-                          placeholder="Describe the custom task to be performed..."
-                          rows={3}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm resize-none"
-                        />
-                      </div>
-                    </>
-                  )}
 
                   <div className="bg-green-50 rounded p-3">
                     <label className="flex items-center gap-2 cursor-pointer">
@@ -497,39 +404,7 @@ const StepEditor: React.FC<StepEditorProps> = ({
                     </p>
                   </div>
 
-                  {/* Task Summary */}
-                  <div className="bg-gray-50 rounded p-3 text-xs">
-                    <p className="font-medium text-gray-700 mb-1">Task Summary</p>
-                    <p className="text-gray-600">
-                      <strong>Type:</strong> {editedStep.taskAction.taskType.charAt(0).toUpperCase() + editedStep.taskAction.taskType.slice(1)}
-                    </p>
-                    {editedStep.taskAction.taskType === 'other' && editedStep.taskAction.otherTitle && (
-                      <p className="text-gray-600">
-                        <strong>Title:</strong> {editedStep.taskAction.otherTitle}
-                      </p>
-                    )}
-                    {editedStep.taskAction.taskType === 'linkedin' && editedStep.taskAction.linkedinDescription && (
-                      <p className="text-gray-600 mt-1">
-                        <strong>Description:</strong> {editedStep.taskAction.linkedinDescription.substring(0, 100)}{editedStep.taskAction.linkedinDescription.length > 100 ? '...' : ''}
-                      </p>
-                    )}
-                    {editedStep.taskAction.taskType === 'whatsapp' && editedStep.taskAction.whatsappDescription && (
-                      <p className="text-gray-600 mt-1">
-                        <strong>Description:</strong> {editedStep.taskAction.whatsappDescription.substring(0, 100)}{editedStep.taskAction.whatsappDescription.length > 100 ? '...' : ''}
-                      </p>
-                    )}
-                    {editedStep.taskAction.taskType === 'call' && editedStep.taskAction.callDescription && (
-                      <p className="text-gray-600 mt-1">
-                        <strong>Description:</strong> {editedStep.taskAction.callDescription.substring(0, 100)}{editedStep.taskAction.callDescription.length > 100 ? '...' : ''}
-                      </p>
-                    )}
-                    {editedStep.taskAction.taskType === 'other' && editedStep.taskAction.otherDescription && (
-                      <p className="text-gray-600 mt-1">
-                        <strong>Description:</strong> {editedStep.taskAction.otherDescription.substring(0, 100)}{editedStep.taskAction.otherDescription.length > 100 ? '...' : ''}
-                      </p>
-                    )}
                   </div>
-                </div>
               )}
             </div>
           </div>
@@ -553,8 +428,7 @@ const StepEditor: React.FC<StepEditorProps> = ({
                   {editedStep.taskAction && (
                     <span className="inline-flex items-center gap-1">
                       <FiCheckSquare className="w-3 h-3" />
-                      Task: {editedStep.taskAction.taskType.charAt(0).toUpperCase() + editedStep.taskAction.taskType.slice(1)}
-                      {editedStep.taskAction.taskType === 'other' && editedStep.taskAction.otherTitle && ` - ${editedStep.taskAction.otherTitle}`}
+                      Task: {editedStep.taskAction.otherTitle || 'Task'}
                     </span>
                   )}
                   {!editedStep.emailAction && !editedStep.taskAction && (

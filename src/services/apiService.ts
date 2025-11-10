@@ -54,6 +54,14 @@ async function apiRequest(endpoint: string, options: RequestInit = {}): Promise<
     functionEndpoint = '/campaigns-get-sequences';
   } else if (endpoint === '/campaigns-list-campaigns') {
     functionEndpoint = '/campaigns-list-campaigns';
+  } else if (endpoint === '/campaigns-get-sequence-details') {
+    functionEndpoint = '/campaigns-get-sequence-details';
+  } else if (endpoint.startsWith('/campaigns/') && endpoint.includes('/update')) {
+    // Handle campaign update endpoints
+    functionEndpoint = '/campaigns-update-sequence';
+  } else if (endpoint.match(/^\/campaigns\/[a-f0-9-]+$/)) {
+    // Handle direct campaign ID endpoints for PUT requests
+    functionEndpoint = '/campaigns-update-sequence';
   }
 
   const url = isNetlifyFunction

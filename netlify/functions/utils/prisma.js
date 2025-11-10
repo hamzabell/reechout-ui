@@ -1,3 +1,6 @@
+// Load environment variables from .env file
+require('dotenv').config();
+
 const { PrismaClient } = require('@prisma/client');
 
 // Global prisma instance for serverless environments

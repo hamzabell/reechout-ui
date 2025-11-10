@@ -93,6 +93,36 @@ export interface CampaignSettings {
   personalizationLevel?: 'basic' | 'advanced' | 'ai-powered';
 }
 
+export interface CampaignScheduling {
+  scheduledDate: string;
+  timezone: string;
+  dailyLimit: number;
+  sendTime: string;
+  createdAt: string;
+}
+
+export interface CampaignControlAction {
+  sequenceId: string;
+  action: 'start' | 'pause' | 'resume' | 'stop' | 'cancel';
+  userId: string;
+}
+
+export interface CampaignScheduleRequest {
+  sequenceId: string;
+  scheduledDate: string;
+  timezone: string;
+  userId: string;
+  dailyLimit?: number;
+  sendTime?: string;
+}
+
+export interface TimezoneInfo {
+  value: string;
+  label: string;
+  offset: string;
+  currentTime: string;
+}
+
 export interface EmailTemplate {
   id: string;
   name: string;

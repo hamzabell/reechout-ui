@@ -1,33 +1,27 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate, useLocation } from 'react-router-dom';
-import { motion } from 'framer-motion';
+import { useParams, useNavigate } from 'react-router-dom';
 import {
   FiArrowLeft,
-  FiPlay,
-  FiPause,
-  FiRefreshCw,
-  FiSquare,
   FiPlus,
-  FiMail,
-  FiCheckSquare,
   FiUser,
-  FiCalendar,
-  FiClock,
   FiAlertCircle,
-  FiTrash2,
   FiList,
-  FiTarget,
-  FiSettings,
   FiInfo,
-  FiX,
-  FiZap,
+  FiSave,
+  FiCalendar,
 } from 'react-icons/fi';
-import StepEditor from '../components/campaigns/StepEditor';
 
+import StepEditor from '../components/campaigns/StepEditor';
 import StepCard from '../components/campaigns/StepCard';
+import CampaignControl from '../components/campaigns/CampaignControl';
+import CampaignScheduler from '../components/campaigns/CampaignScheduler';
 import ModalWrapper from '../components/ModalWrapper';
 import { useConfirm } from '../hooks/useConfirm';
-import { useAlert } from '../hooks/useAlert';
+import { useToast } from '../hooks/useToast';
+import { useSequenceDetails, useUpdateCampaign, useCreateSequence } from '../hooks/useCampaigns';
+import { useAuth } from '../hooks/useAuth';
+
+type ViewMode = 'overview' | 'steps' | 'prospects' | 'settings';
 
 interface CampaignStep {
   id: string;
@@ -55,7 +49,6 @@ interface CampaignStep {
     linkedinDescription?: string;
     whatsappDescription?: string;
     callDescription?: string;
-    otherDescription?: string;
     enableEmailNotification: boolean;
   };
 }
@@ -80,8 +73,10 @@ interface CampaignProspect {
     status: string;
     stepEmailAction: {
       step: {
-        stepNumber: number;
-        name?: string;
+        step: {
+          stepNumber: number;
+          name?: string;
+        };
       };
     };
   }>;
@@ -91,286 +86,130 @@ interface Campaign {
   id: string;
   name: string;
   description?: string;
-  status: 'DRAFT' | 'ACTIVE' | 'PAUSED' | 'COMPLETED' | 'CANCELLED';
+  status: 'DRAFT' | 'ACTIVE' | 'PAUSED' | 'COMPLETED' | 'CANCELLED' | 'draft' | 'sending' | 'paused' | 'completed';
   createdAt: string;
   startedAt?: string;
   pausedAt?: string;
   completedAt?: string;
-  sendTime?: string;
-  timezone?: string;
-  dailyLimit?: number;
   steps: CampaignStep[];
-  campaignProspects: CampaignProspect[];
-  statistics: {
-    totalSteps: number;
-    emailSteps: number;
-    taskSteps: number;
-    totalProspects: number;
-    activeProspects: number;
-    completedProspects: number;
-  };
+  prospects: CampaignProspect[];
 }
 
 const SequenceDetailsPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const location = useLocation();
-  const [activeTab, setActiveTab] = useState<'overview' | 'steps' | 'prospects' | 'settings'>('steps');
+  const { user } = useAuth();
+
+  // View modes
+  const [viewMode, setViewMode] = useState<ViewMode>('overview');
+  const [showStepModal, setShowStepModal] = useState(false);
   const [editingStep, setEditingStep] = useState<CampaignStep | null>(null);
-  const [isStepEditorOpen, setIsStepEditorOpen] = useState(false);
-  
-  const [showProspectSelectionModal, setShowProspectSelectionModal] = useState(false);
-  const [selectedProspectsToAdd, setSelectedProspectsToAdd] = useState<string[]>([]);
-  
-  // State for schedule modal
-  const [showScheduleModal, setShowScheduleModal] = useState(false);
-  const [scheduleMode] = useState<'now' | 'scheduled'>('now');
-  const [scheduledDate, setScheduledDate] = useState<string>('');
-  const [scheduledTime, setScheduledTime] = useState<string>('');
-  const [timezone, setTimezone] = useState<string>('UTC');
-  
-  // State for prospect pause/restart modal
-  const [showProspectPauseModal, setShowProspectPauseModal] = useState(false);
-  const [prospectToToggle, setProspectToToggle] = useState<CampaignProspect | null>(null);
-  
-  // Check if this is a newly created blank sequence
-  const isNewSequence = id?.startsWith('seq_') || false;
+  const [showSchedulerModal, setShowSchedulerModal] = useState(false);
 
-  // Scroll to top when navigating to this page (especially for campaign details)
-  useEffect(() => {
-    // Multiple attempts to scroll to top for this specific page
-    const scrollToTop = () => {
-      // Try to find and scroll the main content area
-      const mainContent = document.querySelector('.flex-1.overflow-auto') as HTMLElement;
-      if (mainContent) {
-        mainContent.scrollTop = 0;
-      }
-      
-      // Also scroll window to top
-      window.scrollTo(0, 0);
-      
-      // Try any other scrollable elements
-      const scrollableElements = document.querySelectorAll('[class*="overflow"], [class*="scroll"]');
-      scrollableElements.forEach((el: any) => {
-        if (el && typeof el.scrollTop === 'number') {
-          el.scrollTop = 0;
-        }
-      });
-    };
+  // Hooks for modals and notifications
+  const { confirmDanger } = useConfirm();
+  const { showToast } = useToast();
 
-    // Immediate scroll
-    scrollToTop();
+  // Mutation hooks
+  const updateCampaign = useUpdateCampaign(id || '');
+  const createSequence = useCreateSequence();
+
+  // Fetch sequence details from API
+  const { campaign: apiCampaign, isLoading: apiLoading, error: apiError } = useSequenceDetails(id || null);
+
+  // State for saving and local edits
+  const [isSaving, setIsSaving] = useState(false);
+  const [localCampaign, setLocalCampaign] = useState<Campaign | null>(null);
+  const [hasChanges, setHasChanges] = useState(false);
+  const [formErrors, setFormErrors] = useState<{name?: string}>({});
+
+  // Use API data directly, or local data if we have unsaved changes
+  const campaign = localCampaign || apiCampaign;
+  const isLoading = apiLoading;
+  const error = apiError instanceof Error ? apiError.message : apiError ? String(apiError) : null;
+  
+  // Check if this is a new campaign (default values)
+  const isNewCampaign = apiCampaign?.name === 'New Campaign' && !apiCampaign.description && apiCampaign.steps.length === 0;
+
+  // Validate form
+  const validateForm = (): boolean => {
+    const errors: {name?: string} = {};
     
-    // Multiple retries to ensure it works
-    const timeouts = [10, 50, 100, 200, 500];
-    timeouts.forEach((delay) => {
-      setTimeout(scrollToTop, delay);
-    });
-  }, [location.pathname, location.key]); // Add location.key to catch back/forward navigation
-
-  // Mock campaign data for frontend demo
-  const [campaign, setCampaign] = useState<Campaign>({
-    id: id || '1',
-    name: isNewSequence ? 'New Sequence' : 'Welcome Series Sequence',
-    description: isNewSequence ? 'Add a description for your sequence' : 'Onboarding sequence for new subscribers with personalized emails and follow-up tasks.',
-    status: 'DRAFT',
-    createdAt: isNewSequence ? new Date().toISOString() : '2024-01-15T10:00:00Z',
-    startedAt: undefined,
-    pausedAt: undefined,
-    completedAt: undefined,
-    steps: isNewSequence ? [] : [
-      {
-        id: 'step_1',
-        stepNumber: 1,
-        day: 1,
-        name: 'Welcome Email',
-        description: 'Send a warm welcome email with basic product information',
-        emailAction: {
-          id: 'email_1',
-          templateId: '1',
-          customSubject: undefined,
-          customBody: undefined,
-          enablePersonalization: true,
-          template: {
-            id: '1',
-            name: 'Initial Outreach',
-            subject: 'Welcome to our platform!',
-            body: 'Hi {{name}}, welcome to our platform! We\'re excited to have you on board.'
-          }
-        }
-      },
-      {
-        id: 'step_2',
-        stepNumber: 2,
-        day: 3,
-        name: 'Feature Introduction',
-        description: 'Introduce key features and benefits',
-        emailAction: {
-          id: 'email_2',
-          templateId: '2',
-          customSubject: undefined,
-          customBody: undefined,
-          enablePersonalization: true,
-          template: {
-            id: '2',
-            name: 'Follow-up',
-            subject: 'Discover our key features',
-            body: 'Hi {{name}}, now that you\'re settled in, let us show you some powerful features.'
-          }
-        }
-      },
-      {
-        id: 'step_3',
-        stepNumber: 3,
-        day: 5,
-        name: 'LinkedIn Follow-up',
-        description: 'Create a LinkedIn connection task',
-        taskAction: {
-          id: 'task_1',
-          taskType: 'linkedin',
-          linkedinDescription: 'Send a personalized LinkedIn connection request with a follow-up message about their specific pain points',
-          enableEmailNotification: true
-        }
-      }
-    ],
-    campaignProspects: isNewSequence ? [] : [
-      {
-        id: 'cp_1',
-        status: 'ACTIVE',
-        prospect: {
-          id: 'prospect_1',
-          name: 'John Doe',
-          email: 'john@example.com',
-          company: 'Tech Corp',
-          title: 'CEO',
-          location: 'San Francisco, CA',
-          industry: 'Technology',
-          notes: 'Key decision maker, interested in automation solutions'
-        },
-        personalizedEmails: [
-          {
-            id: 'pe_1',
-            subject: 'Welcome to our platform!',
-            body: 'Hi John Doe, welcome to Tech Corp! We\'re excited to have you on board and wanted to personally reach out to help you get started.',
-            status: 'SENT',
-            stepEmailAction: {
-              step: {
-                stepNumber: 1,
-                name: 'Welcome Email'
-              }
-            }
-          },
-          {
-            id: 'pe_2',
-            subject: 'Discover features tailored for CEOs',
-            body: 'Hi John Doe, now that you\'re settled in, let us show you some powerful features that would be perfect for a CEO at Tech Corp.',
-            status: 'DRAFT',
-            stepEmailAction: {
-              step: {
-                stepNumber: 2,
-                name: 'Feature Introduction'
-              }
-            }
-          }
-        ]
-      },
-      {
-        id: 'cp_2',
-        status: 'PAUSED',
-        prospect: {
-          id: 'prospect_2',
-          name: 'Jane Smith',
-          email: 'jane@example.com',
-          company: 'Design Inc',
-          title: 'Designer',
-          location: 'New York, NY',
-          industry: 'Design',
-          notes: 'Creative professional, focused on user experience'
-        },
-        personalizedEmails: [
-          {
-            id: 'pe_3',
-            subject: 'Welcome to our platform!',
-            body: 'Hi Jane Smith, welcome to Design Inc! We\'re excited to have you on board and wanted to personally reach out to help you get started.',
-            status: 'SENT',
-            stepEmailAction: {
-              step: {
-                stepNumber: 1,
-                name: 'Welcome Email'
-              }
-            }
-          }
-        ]
-      },
-      {
-        id: 'cp_3',
-        status: 'COMPLETED',
-        prospect: {
-          id: 'prospect_3',
-          name: 'Bob Wilson',
-          email: 'bob@example.com',
-          company: 'StartupXYZ',
-          title: 'CTO',
-          location: 'Austin, TX',
-          industry: 'Technology',
-          notes: 'Technical leader, very responsive'
-        },
-        personalizedEmails: [
-          {
-            id: 'pe_4',
-            subject: 'Welcome to our platform!',
-            body: 'Hi Bob Wilson, welcome to StartupXYZ! We\'re excited to have you on board and wanted to personally reach out to help you get started.',
-            status: 'SENT',
-            stepEmailAction: {
-              step: {
-                stepNumber: 1,
-                name: 'Welcome Email'
-              }
-            }
-          },
-          {
-            id: 'pe_5',
-            subject: 'Discover features tailored for CTOs',
-            body: 'Hi Bob Wilson, now that you\'re settled in, let us show you some powerful features that would be perfect for a CTO at StartupXYZ.',
-            status: 'SENT',
-            stepEmailAction: {
-              step: {
-                stepNumber: 2,
-                name: 'Feature Introduction'
-              }
-            }
-          },
-          {
-            id: 'pe_6',
-            subject: 'LinkedIn Follow-up',
-            body: 'Hi Bob Wilson, following up on our previous conversations about technical implementations.',
-            status: 'COMPLETED',
-            stepEmailAction: {
-              step: {
-                stepNumber: 3,
-                name: 'LinkedIn Follow-up'
-              }
-            }
-          }
-        ]
-      }
-    ],
-    statistics: isNewSequence ? {
-      totalSteps: 0,
-      emailSteps: 0,
-      taskSteps: 0,
-      totalProspects: 0,
-      activeProspects: 0,
-      completedProspects: 0
-    } : {
-      totalSteps: 3,
-      emailSteps: 2,
-      taskSteps: 1,
-      totalProspects: 3,
-      activeProspects: 1,
-      completedProspects: 1
+    if (!campaign?.name || campaign.name.trim() === '') {
+      errors.name = 'Campaign name is required';
     }
-  });
+    
+    setFormErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
+
+  // Save campaign function
+  const saveCampaign = async () => {
+    if (!campaign) return;
+    
+    // Validate form before saving
+    if (!validateForm()) {
+      showToast('Please fix the errors before saving', 'error');
+      return;
+    }
+    
+    setIsSaving(true);
+    
+    try {
+      if (isNewCampaign) {
+        // Create new sequence
+        await createSequence.trigger({
+          name: campaign.name,
+          description: campaign.description,
+          steps: campaign.steps,
+          prospects: campaign.prospects,
+        });
+        showToast('Campaign created successfully', 'success');
+        // Clear local campaign to sync with API data
+        setLocalCampaign(null);
+        setHasChanges(false);
+      } else {
+        // Update existing campaign - only send changed fields
+        const updateData: any = {
+          userId: user?.id || user?.neonId,
+          sequenceId: campaign.id
+        };
+        
+        if (localCampaign) {
+          if (localCampaign.name !== apiCampaign?.name) {
+            updateData.name = localCampaign.name;
+          }
+          if (localCampaign.description !== apiCampaign?.description) {
+            updateData.description = localCampaign.description;
+          }
+        }
+        
+        // Only update if there are actual changes to name/description
+        if (Object.keys(updateData).length > 2) { // > 2 because userId and sequenceId are always included
+          await updateCampaign.trigger(updateData);
+          showToast('Campaign updated successfully', 'success');
+          setLocalCampaign(null);
+          setHasChanges(false);
+        }
+      }
+    } catch (err) {
+      showToast('Failed to save campaign', 'error');
+      console.error('Save error:', err);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  // Track changes
+  useEffect(() => {
+    if (localCampaign && apiCampaign) {
+      const hasNameChanged = localCampaign.name !== apiCampaign.name;
+      const hasDescriptionChanged = localCampaign.description !== apiCampaign.description;
+      setHasChanges(hasNameChanged || hasDescriptionChanged);
+    } else {
+      setHasChanges(false);
+    }
+  }, [localCampaign, apiCampaign]);
 
   // Mock email templates for frontend demo
   const mockEmailTemplates = [
@@ -379,1406 +218,440 @@ const SequenceDetailsPage: React.FC = () => {
     { id: '3', name: 'Final Follow-up', subject: 'Final follow-up', body: 'Hi {{name}}, just checking in one last time.' },
   ];
 
-  // Mock available prospects for selection
-  const availableProspects = [
-    {
-      id: 'prospect_a1',
-      name: 'Sarah Johnson',
-      email: 'sarah.j@techstart.io',
-      company: 'TechStart Inc.',
-      title: 'VP of Engineering',
-      location: 'San Francisco, CA',
-      industry: 'Technology',
-      status: 'NEW'
-    },
-    {
-      id: 'prospect_a2',
-      name: 'Michael Chen',
-      email: 'm.chen@innovatecorp.com',
-      company: 'InnovateCorp',
-      title: 'CTO',
-      location: 'New York, NY',
-      industry: 'Technology',
-      status: 'NEW'
-    },
-    {
-      id: 'prospect_a3',
-      name: 'Emma Williams',
-      email: 'emma.w@designhub.co',
-      company: 'Design Hub',
-      title: 'Creative Director',
-      location: 'Los Angeles, CA',
-      industry: 'Design',
-      status: 'CONTACTED'
-    },
-    {
-      id: 'prospect_a4',
-      name: 'David Martinez',
-      email: 'david.m@fintech.pro',
-      company: 'FinTech Pro',
-      title: 'CEO',
-      location: 'Austin, TX',
-      industry: 'Finance',
-      status: 'NEW'
-    },
-    {
-      id: 'prospect_a5',
-      name: 'Lisa Anderson',
-      email: 'lisa.a@healthplus.com',
-      company: 'HealthPlus',
-      title: 'Product Manager',
-      location: 'Boston, MA',
-      industry: 'Healthcare',
-      status: 'REPLIED'
-    },
-    {
-      id: 'prospect_a6',
-      name: 'James Wilson',
-      email: 'j.wilson@retailnow.net',
-      company: 'RetailNow',
-      title: 'Marketing Director',
-      location: 'Chicago, IL',
-      industry: 'Retail',
-      status: 'NEW'
-    }
-  ];
-
-  const [isLoading] = useState(false);
-  const [error] = useState(null);
-  
-  // Hooks for modals
-  const { confirmDanger } = useConfirm();
-  const { showSuccess, showWarning, showInfo } = useAlert();
-
-  const handleCampaignAction = (action: 'start' | 'pause' | 'restart' | 'stop' | 'schedule' | 'end') => {
-    console.log(`Sequence action: ${action}`, { sequenceId: id, scheduleMode, scheduledDate });
-    
-    if (action === 'start') {
-      // Update campaign status to ACTIVE
-      setCampaign(prev => ({ ...prev, status: 'ACTIVE' }));
-      showSuccess(`Campaign "${campaign.name}" started successfully! 🚀`);
-    } else if (action === 'pause') {
-      // Update campaign status to PAUSED
-      setCampaign(prev => ({ ...prev, status: 'PAUSED' }));
-      showSuccess(`Campaign "${campaign.name}" paused successfully! ⏸️`);
-    } else if (action === 'restart') {
-      // Update campaign status to ACTIVE
-      setCampaign(prev => ({ ...prev, status: 'ACTIVE' }));
-      showSuccess(`Campaign "${campaign.name}" resumed successfully! ▶️`);
-    } else if (action === 'end') {
-      // Update campaign status to COMPLETED
-      setCampaign(prev => ({ ...prev, status: 'COMPLETED' }));
-      showSuccess(`Campaign "${campaign.name}" ended successfully! 🔴`);
-    } else if (action === 'schedule') {
-      if (scheduleMode === 'scheduled' && !scheduledDate) {
-        showWarning('Please select a date to schedule the campaign.');
-        return;
-      }
-      const scheduleText = scheduleMode === 'now' 
-        ? 'immediately' 
-        : `on ${new Date(scheduledDate).toLocaleDateString()}`;
-      showInfo(`Sequence "${campaign.name}" scheduled to start ${scheduleText} (frontend demo)`);
-    } else {
-      showInfo(`Sequence "${campaign.name}" ${action} action triggered (frontend demo)`);
-    }
-  };
-
-  const handleRemoveProspect = (campaignProspectId: string) => {
-    console.log('Removing prospect:', campaignProspectId);
-    // Frontend-only: just log the action
-    showInfo('Prospect removed (frontend demo)');
-  };
-
-  // Step management functions (frontend-only for now)
-  const handleEditStep = (step: CampaignStep) => {
-    setEditingStep(step);
-    setIsStepEditorOpen(true);
-  };
-
-  const handleSaveStep = (updatedStep: CampaignStep) => {
-    console.log('Saving step:', updatedStep);
-    // Frontend-only: just log the changes
-    showSuccess(`Step "${updatedStep.name || updatedStep.stepNumber}" saved (frontend demo)`);
-    setEditingStep(null);
-    setIsStepEditorOpen(false);
-  };
-
-  const handleDeleteStep = (stepId: string) => {
-    if (!campaign) return;
-
-    confirmDanger({
-      title: 'Delete Step',
-      message: 'Are you sure you want to delete this step? This action cannot be undone.',
-      onConfirm: () => {
-        console.log('Deleting step:', stepId);
-        // Frontend-only: just log the action
-        showSuccess('Step deleted (frontend demo)');
-      }
-    });
-  };
-
-  const handleAddStep = () => {
-    if (!campaign) return;
-
-    const newStep: CampaignStep = {
-      id: `step_${Date.now()}`,
-      stepNumber: campaign.steps.length + 1,
-      day: campaign.steps.length + 2, // Default to next available day
-      name: `Step ${campaign.steps.length + 1}`,
-    };
-
-    setEditingStep(newStep);
-    setIsStepEditorOpen(true);
-  };
-
-  const handleMoveStepUp = (stepId: string) => {
-    if (!campaign) return;
-    
-    const stepIndex = campaign.steps.findIndex(s => s.id === stepId);
-    if (stepIndex <= 0) return; // Can't move up if already at top
-
-    // Update step order in frontend demo
-    const newSteps = [...campaign.steps];
-    [newSteps[stepIndex - 1], newSteps[stepIndex]] = [newSteps[stepIndex], newSteps[stepIndex - 1]];
-    
-    // Update step numbers
-    const updatedSteps = newSteps.map((step, idx) => ({
-      ...step,
-      stepNumber: idx + 1,
-    }));
-
-    setCampaign(prev => ({ ...prev, steps: updatedSteps }));
-    showSuccess('Step moved up successfully!');
-  };
-
-  const handleMoveStepDown = (stepId: string) => {
-    if (!campaign) return;
-    
-    const stepIndex = campaign.steps.findIndex(s => s.id === stepId);
-    if (stepIndex >= campaign.steps.length - 1) return; // Can't move down if already at bottom
-
-    // Update step order in frontend demo
-    const newSteps = [...campaign.steps];
-    [newSteps[stepIndex], newSteps[stepIndex + 1]] = [newSteps[stepIndex + 1], newSteps[stepIndex]];
-    
-    // Update step numbers
-    const updatedSteps = newSteps.map((step, idx) => ({
-      ...step,
-      stepNumber: idx + 1,
-    }));
-
-    setCampaign(prev => ({ ...prev, steps: updatedSteps }));
-    showSuccess('Step moved down successfully!');
-  };
-
-  
-
-  
-  const handleAddProspects = () => {
-    if (!campaign) return;
-
-    // Open prospect selection modal
-    setShowProspectSelectionModal(true);
-    setSelectedProspectsToAdd([]);
-  };
-
-  const handleProspectSelection = (prospectId: string) => {
-    setSelectedProspectsToAdd(prev =>
-      prev.includes(prospectId)
-        ? prev.filter(id => id !== prospectId)
-        : [...prev, prospectId]
-    );
-  };
-
-  const handleAddSelectedProspects = () => {
-    if (selectedProspectsToAdd.length === 0) {
-      showWarning('Please select at least one prospect to add.');
-      return;
-    }
-
-    const prospectsToAdd = availableProspects.filter(prospect =>
-      selectedProspectsToAdd.includes(prospect.id)
-    );
-
-    // Update the campaign with new prospects
-    setCampaign(prev => ({
-      ...prev,
-      campaignProspects: [
-        ...(prev.campaignProspects || []),
-        ...prospectsToAdd.map(prospect => ({
-          id: `cp_${prospect.id}`,
-          status: 'PENDING',
-          prospect: {
-            id: prospect.id,
-            name: prospect.name,
-            email: prospect.email,
-            company: prospect.company,
-            title: prospect.title,
-            location: prospect.location,
-            industry: prospect.industry,
-            notes: '',
-          },
-          personalizedEmails: []
-        }))
-      ],
-      statistics: {
-        ...prev.statistics,
-        totalProspects: prev.statistics.totalProspects + prospectsToAdd.length
-      }
-    }));
-
-    // Close modal and show success message
-    setShowProspectSelectionModal(false);
-    setSelectedProspectsToAdd([]);
-    showSuccess(`Added ${prospectsToAdd.length} prospects to the sequence successfully!`);
-  };
-
-  // Handle pause/restart prospect
-  const handleToggleProspectPause = (prospect: CampaignProspect) => {
-    setProspectToToggle(prospect);
-    setShowProspectPauseModal(true);
-  };
-
-  // Confirm prospect pause/restart
-  const handleConfirmProspectToggle = () => {
-    if (!prospectToToggle) return;
-
-    const newStatus = prospectToToggle.status === 'ACTIVE' ? 'PAUSED' : 'ACTIVE';
-    const action = newStatus === 'PAUSED' ? 'paused' : 'restarted';
-
-    // Update the prospect status
-    setCampaign(prev => ({
-      ...prev,
-      campaignProspects: prev.campaignProspects.map(cp =>
-        cp.id === prospectToToggle.id ? { ...cp, status: newStatus } : cp
-      )
-    }));
-
-    showSuccess(`Prospect "${prospectToToggle.prospect.name}" ${action} successfully!`);
-    setShowProspectPauseModal(false);
-    setProspectToToggle(null);
-  };
-
-  
-  const getStatusIcon = (status: string) => {
-    switch (status) {
-      case 'ACTIVE':
-        return <FiPlay className="w-4 h-4" />;
-      case 'PAUSED':
-        return <FiPause className="w-4 h-4" />;
-      case 'COMPLETED':
-        return <FiCheckSquare className="w-4 h-4" />;
-      case 'CANCELLED':
-        return <FiSquare className="w-4 h-4" />;
-      default:
-        return <FiClock className="w-4 h-4" />;
-    }
-  };
-
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center py-12">
-        <FiRefreshCw className="animate-spin text-2xl text-gray-400 mr-3" />
-        <span className="text-gray-500">Loading sequence...</span>
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-16 h-16 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading campaign details...</p>
+        </div>
       </div>
     );
   }
 
-  if (error || !campaign) {
+  if (error) {
     return (
-      <div className="text-center py-12">
-        <FiAlertCircle className="text-4xl text-red-500 mx-auto mb-4" />
-        <p className="text-red-600">Failed to load sequence</p>
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <FiAlertCircle className="w-16 h-16 text-red-500 mx-auto mb-4" />
+          <p className="text-gray-600 mb-4">Error: {error || 'Unknown error occurred'}</p>
+          <button
+            onClick={() => navigate('/campaigns')}
+            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+          >
+            Back to Campaigns
+          </button>
+        </div>
       </div>
     );
   }
 
-  const containerVariants = {
-    hidden: { opacity: 0 },
-    visible: {
-      opacity: 1,
-      transition: {
-        staggerChildren: 0.1,
-      },
-    },
-  };
-
-  const itemVariants = {
-    hidden: { y: 20, opacity: 0 },
-    visible: {
-      y: 0,
-      opacity: 1,
-    },
-  };
+  if (!campaign) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <FiAlertCircle className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+          <p className="text-gray-600 mb-4">Campaign not found</p>
+          <button
+            onClick={() => navigate('/campaigns')}
+            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+          >
+            Back to Campaigns
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <motion.div
-      initial="hidden"
-      animate="visible"
-      variants={containerVariants}
-      className="sequence-editor"
-    >
-      {/* Header */}
-      <motion.div variants={itemVariants} className="bg-white border-b border-slate-200">
-        <div className="px-6 py-6">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <button
-                onClick={() => navigate('/dashboard/campaigns')}
-                className="btn-icon text-slate-600 hover:text-slate-900"
-              >
-                <FiArrowLeft className="w-5 h-5" />
-              </button>
+    <div className="min-h-screen bg-gray-50">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Header */}
+        <div className="mb-8">
+          <button
+            onClick={() => navigate('/campaigns')}
+            className="flex items-center text-gray-600 hover:text-gray-900 mb-4"
+          >
+            <FiArrowLeft className="w-5 h-5 mr-2" />
+            Back to Campaigns
+          </button>
+          
+          <div className="bg-white rounded-lg shadow-sm p-6">
+            <div className="flex items-start justify-between">
               <div>
-                <h1 className="text-2xl font-bold text-slate-900">{campaign.name}</h1>
+                <h1 className="text-2xl font-bold text-gray-900">{campaign.name}</h1>
                 {campaign.description && (
-                  <p className="text-slate-600 mt-1">{campaign.description}</p>
+                  <p className="text-gray-600 mt-1">{campaign.description}</p>
                 )}
+                <div className="text-sm text-gray-500 mt-2">
+                  Created {new Date(campaign.createdAt).toLocaleDateString()}
+                </div>
               </div>
-            </div>
-            
-            <div className="flex items-center gap-3">
-              <span className={`status ${campaign.status.toLowerCase()}`}>
-                {getStatusIcon(campaign.status)}
-                {campaign.status}
-              </span>
               
-              {campaign.status === 'DRAFT' && (
-                <>
-                  <button
-                    onClick={() => setShowScheduleModal(true)}
-                    className="px-4 py-2 bg-white border-2 border-indigo-500 text-indigo-600 rounded-lg hover:bg-indigo-50 transition-all duration-200 flex items-center gap-2 font-medium"
-                  >
-                    <FiCalendar className="w-4 h-4" />
-                    <span>Schedule</span>
-                  </button>
-                  <button
-                    onClick={() => handleCampaignAction('start')}
-                    className="px-4 py-2 bg-gradient-to-r from-indigo-500 to-purple-600 text-white rounded-lg hover:from-indigo-600 hover:to-purple-700 transition-all duration-200 flex items-center gap-2 font-medium shadow-md hover:shadow-lg"
-                  >
-                    <FiPlay className="w-4 h-4" />
-                    <span>Start Now</span>
-                  </button>
-                </>
-              )}
-              {campaign.status === 'ACTIVE' && (
-                <div className="flex gap-3">
-                  <button
-                    onClick={() => handleCampaignAction('pause')}
-                    className="px-4 py-2 bg-white border-2 border-amber-500 text-amber-600 rounded-lg hover:bg-amber-50 transition-all duration-200 flex items-center gap-2 font-medium"
-                  >
-                    <FiPause className="w-4 h-4" />
-                    <span>Pause</span>
-                  </button>
-                  <button
-                    onClick={() => handleCampaignAction('end')}
-                    className="px-4 py-2 bg-gradient-to-r from-red-500 to-red-600 text-white rounded-lg hover:from-red-600 hover:to-red-700 transition-all duration-200 flex items-center gap-2 font-medium shadow-md hover:shadow-lg"
-                  >
-                    <FiSquare className="w-4 h-4" />
-                    <span>End</span>
-                  </button>
-                </div>
-              )}
-              {campaign.status === 'PAUSED' && (
-                <div className="flex gap-3">
-                  <button
-                    onClick={() => handleCampaignAction('restart')}
-                    className="px-4 py-2 bg-gradient-to-r from-indigo-500 to-purple-600 text-white rounded-lg hover:from-indigo-600 hover:to-purple-700 transition-all duration-200 flex items-center gap-2 font-medium shadow-md hover:shadow-lg"
-                  >
-                    <FiRefreshCw className="w-4 h-4" />
-                    <span>Resume</span>
-                  </button>
-                  <button
-                    onClick={() => handleCampaignAction('end')}
-                    className="px-4 py-2 bg-white border-2 border-red-500 text-red-600 rounded-lg hover:bg-red-50 transition-all duration-200 flex items-center gap-2 font-medium"
-                  >
-                    <FiSquare className="w-4 h-4" />
-                    <span>End</span>
-                  </button>
-                </div>
-              )}
+              <CampaignControl 
+                campaign={campaign}
+                onScheduleClick={() => setShowSchedulerModal(true)}
+              />
             </div>
           </div>
         </div>
-      </motion.div>
 
-      {/* Key Statistics */}
-      <motion.div variants={itemVariants} className="px-6 py-8">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div className="metric-card">
-            <div className="flex items-center justify-between mb-4">
-              <div className="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center">
-                <FiCalendar className="w-6 h-6 text-blue-600" />
-              </div>
-              <span className="text-sm text-slate-500">
-                {campaign.statistics.emailSteps} email, {campaign.statistics.taskSteps} tasks
-              </span>
-            </div>
-            <h3 className="text-3xl font-bold text-slate-900">{campaign.statistics.totalSteps}</h3>
-            <p className="text-slate-600 mt-1">Total Steps</p>
-          </div>
-
-          <div className="metric-card">
-            <div className="flex items-center justify-between mb-4">
-              <div className="w-12 h-12 bg-emerald-100 rounded-xl flex items-center justify-center">
-                <FiUser className="w-6 h-6 text-emerald-600" />
-              </div>
-              <span className={`text-sm stat-change ${campaign.statistics.activeProspects > 0 ? 'positive' : ''}`}>
-                {campaign.statistics.totalProspects > 0 ?
-                  `${Math.round((campaign.statistics.activeProspects / campaign.statistics.totalProspects) * 100)}% active` :
-                  'No prospects'
-                }
-              </span>
-            </div>
-            <h3 className="text-3xl font-bold text-slate-900">{campaign.statistics.totalProspects}</h3>
-            <p className="text-slate-600 mt-1">Total Prospects</p>
-          </div>
-
-          <div className="metric-card">
-            <div className="flex items-center justify-between mb-4">
-              <div className="w-12 h-12 bg-purple-100 rounded-xl flex items-center justify-center">
-                <FiTarget className="w-6 h-6 text-purple-600" />
-              </div>
-              <span className="text-sm text-slate-500">
-                {campaign.statistics.completedProspects} completed
-              </span>
-            </div>
-            <h3 className="text-3xl font-bold text-slate-900">{campaign.statistics.activeProspects}</h3>
-            <p className="text-slate-600 mt-1">Active Prospects</p>
-          </div>
-        </div>
-      </motion.div>
-
-      {/* Simplified Tabs */}
-      <motion.div variants={itemVariants} className="px-6">
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm">
-          <div className="border-b border-slate-200">
-            <div className="flex">
-              {[
-                { id: 'steps', label: 'Steps', icon: FiMail, count: campaign.steps.length },
-                { id: 'prospects', label: 'Prospects', icon: FiUser, count: campaign.campaignProspects.length },
-                { id: 'overview', label: 'Analytics', icon: FiList, count: null },
-                { id: 'settings', label: 'Settings', icon: FiSettings, count: null },
-              ].map((tab) => (
+        {/* View Mode Tabs */}
+        <div className="mb-6">
+          <div className="border-b border-gray-200">
+            <nav className="-mb-px flex space-x-8">
+              {(['overview', 'steps', 'prospects', 'settings'] as const).map((mode) => (
                 <button
-                  key={tab.id}
-                  onClick={() => {
-                    setActiveTab(tab.id as any);
-                  }}
-                  className={`flex-1 flex items-center justify-center gap-2 px-4 py-4 text-sm font-medium transition-colors border-b-2 ${
-                    activeTab === tab.id
-                      ? 'text-blue-600 border-blue-600 bg-blue-50'
-                      : 'text-slate-600 border-transparent hover:text-slate-900 hover:bg-slate-50'
+                  key={mode}
+                  onClick={() => setViewMode(mode)}
+                  className={`py-2 px-1 border-b-2 font-medium text-sm capitalize ${
+                    viewMode === mode
+                      ? 'border-blue-500 text-blue-600'
+                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                   }`}
                 >
-                  <tab.icon className="w-4 h-4" />
-                  {tab.label}
-                  {tab.count !== null && (
-                    <span className="bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full text-xs">
-                      {tab.count}
-                    </span>
-                  )}
+                  {mode}
                 </button>
               ))}
+            </nav>
+          </div>
+        </div>
+
+        {/* Content based on view mode */}
+        {viewMode === 'overview' && (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="bg-white rounded-lg shadow-sm p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-medium text-gray-900">Steps</h3>
+                <FiList className="w-5 h-5 text-gray-400" />
+              </div>
+              <p className="text-2xl font-bold text-gray-900">{campaign.steps.length}</p>
+              <p className="text-sm text-gray-500">Campaign steps</p>
+            </div>
+            
+            <div className="bg-white rounded-lg shadow-sm p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-medium text-gray-900">Prospects</h3>
+                <FiUser className="w-5 h-5 text-gray-400" />
+              </div>
+              <p className="text-2xl font-bold text-gray-900">{campaign.prospects.length}</p>
+              <p className="text-sm text-gray-500">Active prospects</p>
+            </div>
+            
+            <div className="bg-white rounded-lg shadow-sm p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-medium text-gray-900">Status</h3>
+                <FiAlertCircle className="w-5 h-5 text-gray-400" />
+              </div>
+              <p className="text-lg font-bold text-gray-900">{campaign.status}</p>
+              <p className="text-sm text-gray-500">Campaign status</p>
             </div>
           </div>
-          
-          <div className="p-6 bg-white min-h-[400px]">
-  
-            {activeTab === 'overview' && (
-              <div>
-                <h2 className="text-2xl font-bold mb-6">Campaign Analytics</h2>
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                  {/* Campaign Timeline */}
-                  <div className="analytics-card">
-                    <h3 className="text-lg font-semibold text-slate-900 mb-4">Campaign Timeline</h3>
-                    <div className="space-y-3">
-                      <div className="timeline-item">
-                        <div className="timeline-dot bg-blue-500"></div>
-                        <div className="timeline-content">
-                          <p className="text-sm font-medium text-slate-900">Created</p>
-                          <p className="text-xs text-slate-500">
-                            {new Date(campaign.createdAt).toLocaleDateString()}
-                          </p>
-                        </div>
-                      </div>
-                      {campaign.startedAt && (
-                        <div className="timeline-item">
-                          <div className="timeline-dot bg-emerald-500"></div>
-                          <div className="timeline-content">
-                            <p className="text-sm font-medium text-slate-900">Started</p>
-                            <p className="text-xs text-slate-500">
-                              {new Date(campaign.startedAt).toLocaleDateString()}
-                            </p>
-                          </div>
-                        </div>
-                      )}
-                      {campaign.pausedAt && (
-                        <div className="timeline-item">
-                          <div className="timeline-dot bg-amber-500"></div>
-                          <div className="timeline-content">
-                            <p className="text-sm font-medium text-slate-900">Paused</p>
-                            <p className="text-xs text-slate-500">
-                              {new Date(campaign.pausedAt).toLocaleDateString()}
-                            </p>
-                          </div>
-                        </div>
-                      )}
-                      {campaign.completedAt && (
-                        <div className="timeline-item">
-                          <div className="timeline-dot bg-blue-500"></div>
-                          <div className="timeline-content">
-                            <p className="text-sm font-medium text-slate-900">Completed</p>
-                            <p className="text-xs text-slate-500">
-                              {new Date(campaign.completedAt).toLocaleDateString()}
-                            </p>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Quick Stats */}
-                  <div className="analytics-card">
-                    <h3 className="text-lg font-semibold text-slate-900 mb-4">Progress Overview</h3>
-                    <div className="space-y-4">
-                      <div>
-                        <div className="flex justify-between items-center mb-2">
-                          <span className="text-sm text-slate-600">Active Prospects</span>
-                          <span className="text-sm font-medium text-slate-900">
-                            {campaign.statistics.activeProspects}/{campaign.statistics.totalProspects}
-                          </span>
-                        </div>
-                        <div className="progress-bar">
-                          <div
-                            className="progress-fill bg-emerald-500"
-                            style={{
-                              width: `${campaign.statistics.totalProspects > 0
-                                ? (campaign.statistics.activeProspects / campaign.statistics.totalProspects) * 100
-                                : 0}%`
-                            }}
-                          ></div>
-                        </div>
-                      </div>
-                      <div>
-                        <div className="flex justify-between items-center mb-2">
-                          <span className="text-sm text-slate-600">Completed</span>
-                          <span className="text-sm font-medium text-slate-900">
-                            {campaign.statistics.completedProspects}/{campaign.statistics.totalProspects}
-                          </span>
-                        </div>
-                        <div className="progress-bar">
-                          <div
-                            className="progress-fill bg-blue-500"
-                            style={{
-                              width: `${campaign.statistics.totalProspects > 0
-                                ? (campaign.statistics.completedProspects / campaign.statistics.totalProspects) * 100
-                                : 0}%`
-                            }}
-                          ></div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {activeTab === 'steps' && (
-              <div>
-                <h2 className="text-2xl font-bold mb-6">Campaign Steps</h2>
-                <div className="mb-6 flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-slate-600">
-                      Configure and manage the steps in your campaign sequence
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <button
-                      onClick={handleAddStep}
-                      className="btn-primary"
-                    >
-                      <FiPlus className="w-4 h-4" />
-                      Add Step
-                    </button>
-                  </div>
-                </div>
-
-                {campaign.steps.length > 0 ? (
-                  <div className="space-y-4">
-                    {campaign.steps.map((step: CampaignStep, index: number) => (
-                      <div key={step.id}>
-                        <StepCard
-                          step={step}
-                          onEdit={() => handleEditStep(step)}
-                          onDelete={() => handleDeleteStep(step.id)}
-                          onMoveUp={() => handleMoveStepUp(step.id)}
-                          onMoveDown={() => handleMoveStepDown(step.id)}
-                          isReorderable={campaign.status === 'DRAFT'}
-                          showActions={campaign.status === 'DRAFT'}
-                          isFirst={index === 0}
-                          isLast={index === campaign.steps.length - 1}
-                          campaignId={campaign.id}
-                        />
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="step-empty-state">
-                    <FiCalendar className="w-12 h-12 text-slate-400 mx-auto mb-4" />
-                    <h3 className="text-lg font-medium text-slate-900 mb-2">No Steps Yet</h3>
-                    <p className="text-slate-600 mb-6">
-                      Start building your campaign by adding your first step.
-                    </p>
-                    <button
-                      onClick={handleAddStep}
-                      className="btn-primary mx-auto"
-                    >
-                      <FiPlus className="w-4 h-4" />
-                      Add First Step
-                    </button>
-                  </div>
-                )}
-
-                {campaign.status !== 'DRAFT' && campaign.steps.length > 0 && (
-                  <div className="mt-6 bg-amber-50 border border-amber-200 rounded-xl p-4">
-                    <div className="flex items-start gap-3">
-                      <FiAlertCircle className="w-5 h-5 text-amber-600 mt-0.5" />
-                      <div>
-                        <p className="text-sm font-medium text-amber-900">Campaign Status Notice</p>
-                        <p className="text-sm text-amber-700 mt-1">
-                          This campaign is currently {campaign.status.toLowerCase()}.
-                          Step editing is limited when campaigns are active.
-                          Pause the campaign to make changes to steps.
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {activeTab === 'prospects' && (
-              <div>
-                {/* Header with Add Prospect Button */}
-                <div className="mb-8">
-                  <div className="flex items-center justify-between mb-6">
-                    <div>
-                      <h2 className="text-2xl font-bold text-slate-900">Campaign Prospects</h2>
-                      <p className="text-slate-600 mt-1">Manage prospects in this campaign sequence</p>
-                    </div>
-                    <button
-                      onClick={handleAddProspects}
-                      className="btn-primary flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl hover:from-blue-700 hover:to-indigo-700 transition-all duration-200 shadow-lg hover:shadow-xl"
-                    >
-                      <FiPlus className="w-4 h-4" />
-                      Add Prospect
-                    </button>
-                  </div>
-
-                  {/* Stats Cards */}
-                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-                    <div className="bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-200 rounded-xl p-4">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="text-sm text-blue-600 font-medium">Total Prospects</p>
-                          <p className="text-2xl font-bold text-blue-900">{campaign.campaignProspects.length}</p>
-                        </div>
-                        <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
-                          <FiUser className="w-5 h-5 text-blue-600" />
-                        </div>
-                      </div>
-                    </div>
-                    <div className="bg-gradient-to-br from-emerald-50 to-green-50 border border-emerald-200 rounded-xl p-4">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="text-sm text-emerald-600 font-medium">Active</p>
-                          <p className="text-2xl font-bold text-emerald-900">
-                            {campaign.campaignProspects.filter(cp => cp.status === 'ACTIVE').length}
-                          </p>
-                        </div>
-                        <div className="w-10 h-10 bg-emerald-100 rounded-lg flex items-center justify-center">
-                          <FiPlay className="w-5 h-5 text-emerald-600" />
-                        </div>
-                      </div>
-                    </div>
-                    <div className="bg-gradient-to-br from-orange-50 to-red-50 border border-orange-200 rounded-xl p-4">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="text-sm text-orange-600 font-medium">Paused</p>
-                          <p className="text-2xl font-bold text-orange-900">
-                            {campaign.campaignProspects.filter(cp => cp.status === 'PAUSED').length}
-                          </p>
-                        </div>
-                        <div className="w-10 h-10 bg-orange-100 rounded-lg flex items-center justify-center">
-                          <FiPause className="w-5 h-5 text-orange-600" />
-                        </div>
-                      </div>
-                    </div>
-                    <div className="bg-gradient-to-br from-purple-50 to-indigo-50 border border-purple-200 rounded-xl p-4">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="text-sm text-purple-600 font-medium">Completed</p>
-                          <p className="text-2xl font-bold text-purple-900">
-                            {campaign.campaignProspects.filter(cp => cp.status === 'COMPLETED').length}
-                          </p>
-                        </div>
-                        <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center">
-                          <FiCheckSquare className="w-5 h-5 text-purple-600" />
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Prospects List */}
-                {campaign.campaignProspects.length === 0 ? (
-                  <div className="text-center py-16">
-                    <div className="w-20 h-20 bg-gradient-to-br from-slate-100 to-blue-100 rounded-2xl flex items-center justify-center mx-auto mb-6">
-                      <FiUser className="w-10 h-10 text-slate-400" />
-                    </div>
-                    <h3 className="text-xl font-semibold text-slate-900 mb-3">No prospects yet</h3>
-                    <p className="text-slate-600 mb-8 max-w-md mx-auto">
-                      Start by adding prospects to your campaign sequence to begin your outreach.
-                    </p>
-                    <button
-                      onClick={handleAddProspects}
-                      className="btn-primary inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl hover:from-blue-700 hover:to-indigo-700 transition-all duration-200 shadow-lg hover:shadow-xl"
-                    >
-                      <FiPlus className="w-4 h-4" />
-                      Add Your First Prospect
-                    </button>
-                  </div>
-                ) : (
-                  <div className="space-y-4">
-                    {campaign.campaignProspects.map((cp: CampaignProspect, index: number) => (
-                      <div
-                        key={cp.id}
-                        className="bg-white border border-slate-200 rounded-xl p-6 hover:shadow-lg transition-all duration-200 hover:border-blue-200"
-                      >
-                        <div className="flex items-start justify-between">
-                          <div className="flex-1">
-                            <div className="flex items-center gap-4 mb-3">
-                              <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center text-white font-semibold text-lg">
-                                {cp.prospect.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)}
-                              </div>
-                              <div className="flex-1">
-                                <div className="flex items-center gap-3 mb-1">
-                                  <h4 className="font-semibold text-slate-900 text-lg">{cp.prospect.name}</h4>
-                                  <span className={`px-3 py-1 rounded-full text-xs font-medium border ${
-                                    cp.status === 'ACTIVE'
-                                      ? 'bg-emerald-100 text-emerald-700 border-emerald-200'
-                                      : cp.status === 'PAUSED'
-                                      ? 'bg-orange-100 text-orange-700 border-orange-200'
-                                      : cp.status === 'COMPLETED'
-                                      ? 'bg-blue-100 text-blue-700 border-blue-200'
-                                      : 'bg-slate-100 text-slate-700 border-slate-200'
-                                  }`}>
-                                    {cp.status === 'ACTIVE' && <FiPlay className="w-3 h-3 inline mr-1" />}
-                                    {cp.status === 'PAUSED' && <FiPause className="w-3 h-3 inline mr-1" />}
-                                    {cp.status === 'COMPLETED' && <FiCheckSquare className="w-3 h-3 inline mr-1" />}
-                                    {cp.status}
-                                  </span>
-                                </div>
-                                <p className="text-slate-600 font-medium">{cp.prospect.email}</p>
-                                {(cp.prospect.title || cp.prospect.company) && (
-                                  <p className="text-sm text-slate-500 mt-1">
-                                    {cp.prospect.title && `${cp.prospect.title}`}
-                                    {cp.prospect.title && cp.prospect.company && ' at '}
-                                    {cp.prospect.company && `${cp.prospect.company}`}
-                                  </p>
-                                )}
-                              </div>
-                            </div>
-
-                            {cp.personalizedEmails.length > 0 && (
-                              <div className="mt-4 p-3 bg-slate-50 rounded-lg">
-                                <p className="text-xs text-slate-600 font-medium mb-2">Personalized Emails Progress:</p>
-                                <div className="flex flex-wrap gap-2">
-                                  {cp.personalizedEmails.map((email: any) => (
-                                    <span
-                                      key={email.id}
-                                      className={`px-2 py-1 rounded-lg text-xs font-medium ${
-                                        email.status === 'SENT'
-                                          ? 'bg-emerald-100 text-emerald-700 border border-emerald-200'
-                                          : email.status === 'DRAFT'
-                                          ? 'bg-amber-100 text-amber-700 border border-amber-200'
-                                          : 'bg-slate-100 text-slate-700 border border-slate-200'
-                                      }`}
-                                    >
-                                      Step {email.stepEmailAction.step.stepNumber}: {email.status}
-                                    </span>
-                                  ))}
-                                </div>
-                              </div>
-                            )}
-                          </div>
-
-                          <div className="flex items-center gap-2 ml-4">
-                            <button
-                              onClick={() => handleToggleProspectPause(cp)}
-                              className={`p-2 rounded-lg transition-colors ${
-                                cp.status === 'ACTIVE' 
-                                  ? 'text-amber-600 hover:bg-amber-50' 
-                                  : 'text-emerald-600 hover:bg-emerald-50'
-                              }`}
-                              title={cp.status === 'ACTIVE' ? 'Pause prospect' : 'Restart prospect'}
-                            >
-                              {cp.status === 'ACTIVE' ? <FiPause className="w-4 h-4" /> : <FiPlay className="w-4 h-4" />}
-                            </button>
-                            <button
-                              onClick={() => navigate(`/dashboard/campaigns/${campaign.id}/prospects/${cp.prospect.id}/steps`)}
-                              className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                              title="Configure prospect personalization"
-                            >
-                              <FiZap className="w-4 h-4" />
-                            </button>
-                            <button
-                              onClick={() => handleRemoveProspect(cp.id)}
-                              className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                              title="Remove from campaign"
-                            >
-                              <FiTrash2 className="w-4 h-4" />
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
-
-            {activeTab === 'settings' && (
-              <div className="space-y-8">
-                {/* Header */}
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h2 className="text-3xl font-bold text-slate-900 mb-2">Campaign Settings</h2>
-                    <p className="text-slate-600">Configure your campaign basic information</p>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <button className="btn-secondary">
-                      Cancel Changes
-                    </button>
-                    <button className="btn-primary">
-                      Save Settings
-                    </button>
-                  </div>
-                </div>
-
-                {/* Basic Information Card */}
-                <motion.div 
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.1 }}
-                  className="bg-white rounded-2xl border border-slate-200 shadow-sm hover:shadow-lg transition-all duration-300 w-full"
-                >
-                  <div className="px-8 py-6 border-b border-slate-200">
-                    <div className="flex items-center gap-4">
-                      <div className="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center">
-                        <FiMail className="w-6 h-6 text-blue-600" />
-                      </div>
-                      <div>
-                        <h3 className="text-xl font-bold text-slate-900">Basic Information</h3>
-                        <p className="text-slate-600">Configure campaign name and description</p>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="p-8">
-                    <div className="grid grid-cols-1 gap-6">
-                      <div className="space-y-2">
-                        <label className="flex items-center gap-2 text-sm font-semibold text-slate-700">
-                          <div className="w-1.5 h-1.5 bg-blue-500 rounded-full"></div>
-                          Campaign Name
-                        </label>
-                        <input
-                          type="text"
-                          value={campaign.name}
-                          onChange={(e) => setCampaign(prev => ({ ...prev, name: e.target.value }))}
-                          placeholder="Enter campaign name..."
-                          className="w-full px-5 py-4 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 bg-slate-50/50 transition-all duration-200 hover:border-slate-300 hover:bg-white"
-                        />
-                      </div>
-
-                      <div className="space-y-2">
-                        <label className="flex items-center gap-2 text-sm font-semibold text-slate-700">
-                          <div className="w-1.5 h-1.5 bg-blue-500 rounded-full"></div>
-                          Description
-                        </label>
-                        <textarea
-                          value={campaign.description || ''}
-                          onChange={(e) => setCampaign(prev => ({ ...prev, description: e.target.value }))}
-                          placeholder="Describe your campaign objectives and what it aims to achieve..."
-                          rows={4}
-                          className="w-full px-5 py-4 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 bg-slate-50/50 transition-all duration-200 hover:border-slate-300 hover:bg-white resize-none"
-                        />
-                      </div>
-                    </div>
-
-                    {/* Status Bar */}
-                    <div className="mt-8 p-4 bg-gradient-to-r from-slate-50 to-blue-50 rounded-xl border border-slate-200/60">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-4">
-                          <div className="flex items-center gap-2">
-                            <FiInfo className="w-4 h-4 text-slate-600" />
-                            <span className="text-sm font-medium text-slate-700">Status:</span>
-                            <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                              campaign.status === 'DRAFT' ? 'bg-amber-100 text-amber-700 border border-amber-200' :
-                              campaign.status === 'ACTIVE' ? 'bg-emerald-100 text-emerald-700 border border-emerald-200' :
-                              campaign.status === 'PAUSED' ? 'bg-blue-100 text-blue-700 border border-blue-200' :
-                              'bg-slate-100 text-slate-700 border border-slate-200'
-                            }`}>
-                              {campaign.status}
-                            </span>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-2 text-sm text-slate-600">
-                          <FiCalendar className="w-4 h-4" />
-                          <span>Created: {new Date(campaign.createdAt).toLocaleDateString('en-US', { 
-                            month: 'short', 
-                            day: 'numeric', 
-                            year: 'numeric' 
-                          })}</span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </motion.div>
-              </div>
-            )}
-
-            </div>
-        </div>
-      </motion.div>
-
-        {/* Step Editor Modal */}
-        {editingStep && (
-          <StepEditor
-            step={editingStep}
-            isOpen={isStepEditorOpen}
-            onClose={() => {
-              setIsStepEditorOpen(false);
-              setEditingStep(null);
-            }}
-            onSave={handleSaveStep}
-            onDelete={() => {
-              confirmDanger({
-                title: 'Delete Step',
-                message: 'Are you sure you want to delete this step? This action cannot be undone.',
-                onConfirm: () => {
-                  handleDeleteStep(editingStep.id);
-                  setIsStepEditorOpen(false);
-                  setEditingStep(null);
-                }
-              });
-            }}
-            availableTemplates={mockEmailTemplates}
-            isFirst={editingStep.stepNumber === 1}
-            isLast={campaign ? editingStep.stepNumber === campaign.steps.length : false}
-          />
         )}
 
-        
-
-        {/* Prospect Selection Modal */}
-        <ModalWrapper
-          isOpen={showProspectSelectionModal}
-          onClose={() => {
-            setShowProspectSelectionModal(false);
-            setSelectedProspectsToAdd([]);
-          }}
-          maxWidth="max-w-4xl"
-        >
-          <div className="bg-white rounded-2xl">
-            {/* Header */}
-            <div className="px-6 py-4 border-b border-slate-200">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h3 className="text-xl font-semibold text-slate-900">Select Prospects</h3>
-                  <p className="text-sm text-slate-600 mt-1">Choose prospects to add to this campaign</p>
-                </div>
+        {viewMode === 'steps' && (
+          <div className="space-y-4">
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-xl font-semibold text-gray-900">Campaign Steps</h2>
+              <button
+                onClick={() => {
+                  setEditingStep(null);
+                  setShowStepModal(true);
+                }}
+                className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+              >
+                <FiPlus className="w-4 h-4" />
+                Add Step
+              </button>
+            </div>
+            
+            {campaign.steps.length === 0 ? (
+              <div className="bg-white rounded-lg shadow-sm p-12 text-center">
+                <FiList className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                <h3 className="text-lg font-medium text-gray-900 mb-2">No steps yet</h3>
+                <p className="text-gray-500 mb-4">Create your first campaign step to get started</p>
                 <button
                   onClick={() => {
-                    setShowProspectSelectionModal(false);
-                    setSelectedProspectsToAdd([]);
+                    setEditingStep(null);
+                    setShowStepModal(true);
                   }}
-                  className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
+                  className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 mx-auto"
                 >
-                  <FiTrash2 className="w-5 h-5" />
+                  <FiPlus className="w-4 h-4" />
+                  Add First Step
                 </button>
               </div>
-            </div>
-
-            {/* Content */}
-            <div className="p-6 max-h-[60vh] overflow-y-auto">
-              {availableProspects.length === 0 ? (
-                <div className="text-center py-12">
-                  <FiUser className="w-12 h-12 text-slate-400 mx-auto mb-4" />
-                  <h4 className="text-lg font-medium text-slate-900 mb-2">No available prospects</h4>
-                  <p className="text-slate-600">There are no prospects available to add to this campaign.</p>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  {/* Selection Summary */}
-                  <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-4">
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm text-blue-700 font-medium">
-                        {selectedProspectsToAdd.length} prospect{selectedProspectsToAdd.length !== 1 ? 's' : ''} selected
-                      </span>
-                      <div className="flex gap-2">
-                        <button
-                          onClick={() => setSelectedProspectsToAdd(availableProspects.map(p => p.id))}
-                          className="text-xs px-3 py-1 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition-colors"
-                        >
-                          Select All
-                        </button>
-                        <button
-                          onClick={() => setSelectedProspectsToAdd([])}
-                          className="text-xs px-3 py-1 bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 transition-colors"
-                        >
-                          Clear Selection
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Prospects Grid */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {availableProspects.map((prospect) => (
-                      <div
-                        key={prospect.id}
-                        onClick={() => handleProspectSelection(prospect.id)}
-                        className={`border-2 rounded-xl p-4 cursor-pointer transition-all duration-200 hover:shadow-md ${
-                          selectedProspectsToAdd.includes(prospect.id)
-                            ? 'border-blue-500 bg-blue-50 ring-2 ring-blue-100'
-                            : 'border-slate-200 bg-white hover:border-blue-300'
-                        }`}
-                      >
-                        <div className="flex items-start gap-3">
-                          <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-lg flex items-center justify-center text-white font-semibold text-sm flex-shrink-0">
-                            {prospect.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)}
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center justify-between mb-2">
-                              <h5 className="font-semibold text-slate-900 truncate">{prospect.name}</h5>
-                              <input
-                                type="checkbox"
-                                checked={selectedProspectsToAdd.includes(prospect.id)}
-                                onChange={() => handleProspectSelection(prospect.id)}
-                                className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
-                                onClick={(e) => e.stopPropagation()}
-                              />
-                            </div>
-                            <p className="text-sm text-slate-600 mb-1">{prospect.email}</p>
-                            <p className="text-sm text-slate-600 mb-1">
-                              {prospect.title} at {prospect.company}
-                            </p>
-                            <div className="flex items-center gap-3 mt-2">
-                              <span className={`px-2 py-1 rounded-full text-xs font-medium border ${
-                                prospect.status === 'NEW'
-                                  ? 'bg-blue-100 text-blue-700 border-blue-200'
-                                  : prospect.status === 'CONTACTED'
-                                  ? 'bg-yellow-100 text-yellow-700 border-yellow-200'
-                                  : prospect.status === 'REPLIED'
-                                  ? 'bg-green-100 text-green-700 border-green-200'
-                                  : 'bg-slate-100 text-slate-700 border-slate-200'
-                              }`}>
-                                {prospect.status}
-                              </span>
-                              <span className="text-xs text-slate-500">{prospect.location}</span>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Footer */}
-            <div className="px-6 py-4 border-t border-slate-200 bg-slate-50">
-              <div className="flex items-center justify-between">
-                <div className="text-sm text-slate-600">
-                  {selectedProspectsToAdd.length > 0 && (
-                    <span>Ready to add {selectedProspectsToAdd.length} prospect{selectedProspectsToAdd.length !== 1 ? 's' : ''}</span>
-                  )}
-                </div>
-                <div className="flex gap-3">
-                  <button
-                    onClick={() => {
-                      setShowProspectSelectionModal(false);
-                      setSelectedProspectsToAdd([]);
+            ) : (
+              <div className="space-y-4">
+                {campaign.steps.map((step: CampaignStep, index: number) => (
+                  <StepCard
+                    key={step.id}
+                    step={step}
+                    onEdit={() => {
+                      setEditingStep(step);
+                      setShowStepModal(true);
                     }}
-                    className="px-4 py-2 text-slate-700 bg-white border border-slate-300 rounded-xl hover:bg-slate-50 transition-colors"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    onClick={handleAddSelectedProspects}
-                    disabled={selectedProspectsToAdd.length === 0}
-                    className="px-4 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl hover:from-blue-700 hover:to-indigo-700 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg hover:shadow-xl"
-                  >
-                    Add Selected Prospects
-                  </button>
-                </div>
+                    onDelete={async () => {
+                      const confirmed = await confirmDanger({
+                        message: 'Are you sure you want to delete this step?',
+                        onConfirm: () => {}
+                      });
+                      if (confirmed) {
+                        setLocalCampaign(prev => prev ? {
+                          ...prev,
+                          steps: prev.steps.filter(s => s.id !== step.id)
+                        } : null);
+                        showToast('Step deleted successfully', 'success');
+                      }
+                    }}
+                  />
+                ))}
               </div>
-            </div>
+            )}
           </div>
-        </ModalWrapper>
+        )}
 
-        {/* Schedule Modal */}
-        <ModalWrapper
-          isOpen={showScheduleModal}
-          onClose={() => {
-            setShowScheduleModal(false);
-            setScheduledDate('');
-            setScheduledTime('');
-            setTimezone('UTC');
-          }}
-          maxWidth="max-w-md"
-        >
-          <div className="bg-white rounded-2xl">
-            {/* Header */}
-            <div className="px-6 py-4 border-b border-slate-200">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h3 className="text-xl font-semibold text-slate-900">Schedule Campaign</h3>
-                  <p className="text-sm text-slate-600 mt-1">Choose when to start your campaign</p>
-                </div>
-                <button
-                  onClick={() => {
-                    setShowScheduleModal(false);
-                    setScheduledDate('');
-                    setScheduledTime('');
-                    setTimezone('UTC');
-                  }}
-                  className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
-                >
-                  <FiX className="w-5 h-5" />
+        {viewMode === 'prospects' && (
+          <div className="space-y-4">
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-xl font-semibold text-gray-900">Campaign Prospects</h2>
+              <button className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+                <FiPlus className="w-4 h-4" />
+                Add Prospects
+              </button>
+            </div>
+            
+            {campaign.prospects.length === 0 ? (
+              <div className="bg-white rounded-lg shadow-sm p-12 text-center">
+                <FiUser className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                <h3 className="text-lg font-medium text-gray-900 mb-2">No prospects yet</h3>
+                <p className="text-gray-500 mb-4">Add prospects to your campaign to start outreach</p>
+                <button className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 mx-auto">
+                  <FiPlus className="w-4 h-4" />
+                  Add First Prospect
                 </button>
               </div>
-            </div>
+            ) : (
+              <div className="bg-white rounded-lg shadow-sm">
+                <div className="overflow-x-auto">
+                  <table className="min-w-full divide-y divide-gray-200">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Prospect
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Company
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Status
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Actions
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-gray-200">
+                      {campaign.prospects.map((prospect: CampaignProspect) => (
+                        <tr key={prospect.id}>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div>
+                              <div className="text-sm font-medium text-gray-900">{prospect.prospect.name}</div>
+                              <div className="text-sm text-gray-500">{prospect.prospect.email}</div>
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                            {prospect.prospect.company}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                              prospect.status === 'ACTIVE' ? 'bg-green-100 text-green-800' :
+                              prospect.status === 'COMPLETED' ? 'bg-blue-100 text-blue-800' :
+                              'bg-gray-100 text-gray-800'
+                            }`}>
+                              {prospect.status}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                            <button className="text-blue-600 hover:text-blue-900 mr-3">
+                              Edit
+                            </button>
+                            <button className="text-red-600 hover:text-red-900">
+                              Remove
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
 
-            {/* Content */}
-            <div className="p-6">
+        {viewMode === 'settings' && (
+          <div className="space-y-6">
+            <div className="flex justify-between items-center">
+              <h2 className="text-xl font-semibold text-gray-900">Campaign Settings</h2>
+              <button
+                onClick={saveCampaign}
+                disabled={isSaving || (!hasChanges && !isNewCampaign)}
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
+                  isSaving || (!hasChanges && !isNewCampaign)
+                    ? 'bg-gray-400 text-gray-200 cursor-not-allowed' 
+                    : hasChanges || isNewCampaign
+                    ? 'bg-blue-600 text-white hover:bg-blue-700'
+                    : 'bg-gray-300 text-gray-600'
+                }`}
+              >
+                {isSaving ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                    Saving...
+                  </>
+                ) : (
+                  <>
+                    <FiSave className="w-4 h-4" />
+                    {isNewCampaign ? 'Create Campaign' : hasChanges ? 'Save Changes' : 'No Changes'}
+                  </>
+                )}
+              </button>
+            </div>
+            
+            <div className="bg-white rounded-lg shadow-sm p-6">
+              <h3 className="text-lg font-medium text-gray-900 mb-4">Campaign Details</h3>
               <div className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-2">
-                    Schedule Date
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Campaign Name <span className="text-red-500">*</span>
                   </label>
-                  <div className="relative">
-                    <FiCalendar className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 w-4 h-4" />
-                    <input
-                      type="date"
-                      value={scheduledDate}
-                      onChange={(e) => setScheduledDate(e.target.value)}
-                      min={new Date().toISOString().split('T')[0]}
-                      className="w-full pl-10 pr-4 py-3 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
-                    />
-                  </div>
+                  <input
+                    type="text"
+                    value={localCampaign?.name || campaign.name}
+                    onChange={(e) => {
+                      setLocalCampaign(prev => prev ? { ...prev, name: e.target.value } : { ...campaign, name: e.target.value });
+                      if (formErrors.name) {
+                        setFormErrors(prev => ({ ...prev, name: undefined }));
+                      }
+                    }}
+                    className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                      formErrors.name ? 'border-red-500' : 'border-gray-300'
+                    }`}
+                    placeholder="Enter campaign name"
+                  />
+                  {formErrors.name && (
+                    <p className="mt-1 text-sm text-red-600">{formErrors.name}</p>
+                  )}
                 </div>
-
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-2">
-                    Schedule Time
-                  </label>
-                  <div className="relative">
-                    <FiClock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 w-4 h-4" />
-                    <input
-                      type="time"
-                      value={scheduledTime}
-                      onChange={(e) => setScheduledTime(e.target.value)}
-                      className="w-full pl-10 pr-4 py-3 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-2">
-                    Timezone
-                  </label>
-                  <select
-                    value={timezone}
-                    onChange={(e) => setTimezone(e.target.value)}
-                    className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
-                  >
-                    <option value="UTC">UTC</option>
-                    <option value="America/New_York">🇺🇸 Eastern Time (ET)</option>
-                    <option value="America/Chicago">🇺🇸 Central Time (CT)</option>
-                    <option value="America/Denver">🇺🇸 Mountain Time (MT)</option>
-                    <option value="America/Los_Angeles">🇺🇸 Pacific Time (PT)</option>
-                    <option value="Europe/London">🇬🇧 London (GMT)</option>
-                    <option value="Europe/Paris">🇫🇷 Paris (CET)</option>
-                    <option value="Asia/Tokyo">🇯🇵 Tokyo (JST)</option>
-                    <option value="Australia/Sydney">🇦🇺 Sydney (AEDT)</option>
-                  </select>
-                </div>
-              </div>
-            </div>
-
-            {/* Footer */}
-            <div className="px-6 py-4 border-t border-slate-200 bg-slate-50">
-              <div className="flex gap-3">
-                <button
-                  onClick={() => {
-                    setShowScheduleModal(false);
-                    setScheduledDate('');
-                    setScheduledTime('');
-                    setTimezone('UTC');
-                  }}
-                  className="flex-1 px-4 py-2 text-slate-700 bg-white border border-slate-300 rounded-xl hover:bg-slate-50 transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={() => {
-                    if (!scheduledDate || !scheduledTime) {
-                      showWarning('Please select both date and time for scheduled campaigns.');
-                      return;
-                    }
-                    
-                    const scheduleText = `on ${new Date(scheduledDate).toLocaleDateString()} at ${scheduledTime} ${timezone}`;
-                    
-                    showSuccess(`Campaign "${campaign.name}" scheduled to start ${scheduleText} (frontend demo)`);
-                    setShowScheduleModal(false);
-                    setScheduledDate('');
-                    setScheduledTime('');
-                    setTimezone('UTC');
-                  }}
-                  className="flex-1 px-4 py-2 bg-gradient-to-r from-indigo-500 to-purple-600 text-white rounded-xl hover:from-indigo-600 hover:to-purple-700 transition-all duration-200 shadow-lg hover:shadow-xl"
-                >
-                  Schedule Campaign
-                </button>
-              </div>
-            </div>
-          </div>
-        </ModalWrapper>
-
-        {/* Prospect Pause/Restart Confirmation Modal */}
-        <ModalWrapper
-          isOpen={showProspectPauseModal}
-          onClose={() => {
-            setShowProspectPauseModal(false);
-            setProspectToToggle(null);
-          }}
-          maxWidth="max-w-md"
-        >
-          <div className="bg-white rounded-2xl">
-            {/* Header */}
-            <div className="px-6 py-4 border-b border-slate-200">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h3 className="text-xl font-semibold text-slate-900">
-                    {prospectToToggle?.status === 'ACTIVE' ? 'Pause Prospect' : 'Restart Prospect'}
-                  </h3>
-                  <p className="text-sm text-slate-600 mt-1">
-                    {prospectToToggle?.status === 'ACTIVE' 
-                      ? 'Pause this prospect in the campaign' 
-                      : 'Restart this prospect in the campaign'}
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                  <textarea
+                    value={(localCampaign?.description ?? campaign.description) || ''}
+                    onChange={(e) => setLocalCampaign(prev => prev ? { ...prev, description: e.target.value } : { ...campaign, description: e.target.value })}
+                    rows={3}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder="Enter campaign description (optional)"
+                  />
+                  <p className="mt-1 text-sm text-gray-500">
+                    Optional: Add a description to help you remember the purpose of this campaign.
                   </p>
                 </div>
-                <button
-                  onClick={() => {
-                    setShowProspectPauseModal(false);
-                    setProspectToToggle(null);
-                  }}
-                  className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
-                >
-                  <FiX className="w-5 h-5" />
-                </button>
               </div>
             </div>
 
-            {/* Content */}
-            <div className="p-6">
-              {prospectToToggle && (
-                <div className="space-y-4">
-                  <div className="bg-slate-50 rounded-xl p-4">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-lg flex items-center justify-center text-white font-semibold">
-                        {prospectToToggle.prospect.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)}
-                      </div>
-                      <div>
-                        <p className="font-medium text-slate-900">{prospectToToggle.prospect.name}</p>
-                        <p className="text-sm text-slate-600">{prospectToToggle.prospect.email}</p>
-                        {(prospectToToggle.prospect.title || prospectToToggle.prospect.company) && (
-                          <p className="text-sm text-slate-500">
-                            {prospectToToggle.prospect.title && `${prospectToToggle.prospect.title}`}
-                            {prospectToToggle.prospect.title && prospectToToggle.prospect.company && ' at '}
-                            {prospectToToggle.prospect.company && `${prospectToToggle.prospect.company}`}
-                          </p>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className={`p-4 rounded-xl border ${
-                    prospectToToggle.status === 'ACTIVE'
-                      ? 'bg-amber-50 border-amber-200'
-                      : 'bg-emerald-50 border-emerald-200'
-                  }`}>
-                    <div className="flex items-start gap-3">
-                      {prospectToToggle.status === 'ACTIVE' ? (
-                        <FiPause className="w-5 h-5 text-amber-600 mt-0.5" />
-                      ) : (
-                        <FiPlay className="w-5 h-5 text-emerald-600 mt-0.5" />
-                      )}
-                      <div>
-                        <p className="text-sm font-medium text-slate-900">
-                          {prospectToToggle.status === 'ACTIVE' ? 'Pausing this prospect will:' : 'Restarting this prospect will:'}
-                        </p>
-                        <ul className="text-sm text-slate-600 mt-2 space-y-1">
-                          {prospectToToggle.status === 'ACTIVE' ? (
-                            <>
-                              <li>• Stop all automated emails and tasks</li>
-                              <li>• Halt the prospect's progress in the sequence</li>
-                              <li>• You can restart them at any time</li>
-                            </>
-                          ) : (
-                            <>
-                              <li>• Resume automated emails and tasks</li>
-                              <li>• Continue from where they left off</li>
-                              <li>• Pick up the sequence at their current step</li>
-                            </>
-                          )}
-                        </ul>
-                      </div>
-                    </div>
+            {isNewCampaign && (
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <div className="flex items-start gap-3">
+                  <FiInfo className="w-5 h-5 text-blue-600 mt-0.5" />
+                  <div>
+                    <h4 className="text-sm font-medium text-blue-900">New Campaign</h4>
+                    <p className="text-sm text-blue-700 mt-1">
+                      This is a new campaign. Fill in the details above and click "Create Campaign" to save it to the system.
+                    </p>
                   </div>
                 </div>
-              )}
-            </div>
-
-            {/* Footer */}
-            <div className="px-6 py-4 border-t border-slate-200 bg-slate-50">
-              <div className="flex gap-3">
-                <button
-                  onClick={() => {
-                    setShowProspectPauseModal(false);
-                    setProspectToToggle(null);
-                  }}
-                  className="flex-1 px-4 py-2 text-slate-700 bg-white border border-slate-300 rounded-xl hover:bg-slate-50 transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleConfirmProspectToggle}
-                  className={`flex-1 px-4 py-2 text-white rounded-xl transition-all duration-200 shadow-lg hover:shadow-xl ${
-                    prospectToToggle?.status === 'ACTIVE'
-                      ? 'bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700'
-                      : 'bg-gradient-to-r from-emerald-500 to-green-600 hover:from-emerald-600 hover:to-green-700'
-                  }`}
-                >
-                  {prospectToToggle?.status === 'ACTIVE' ? 'Pause Prospect' : 'Restart Prospect'}
-                </button>
               </div>
-            </div>
+            )}
+
+            {!isNewCampaign && hasChanges && (
+              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                <div className="flex items-start gap-3">
+                  <FiAlertCircle className="w-5 h-5 text-yellow-600 mt-0.5" />
+                  <div>
+                    <h4 className="text-sm font-medium text-yellow-900">Unsaved Changes</h4>
+                    <p className="text-sm text-yellow-700 mt-1">
+                      You have unsaved changes. Click "Save Changes" to update your campaign.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
-        </ModalWrapper>
-      </motion.div>
+        )}
+      </div>
+
+      {/* Step Editor Modal */}
+      <ModalWrapper isOpen={showStepModal} onClose={() => setShowStepModal(false)}>
+        {editingStep ? (
+          <StepEditor
+            step={editingStep}
+            isOpen={showStepModal}
+            onClose={() => setShowStepModal(false)}
+            availableTemplates={mockEmailTemplates}
+            onSave={(stepData) => {
+              // Update existing step
+              setLocalCampaign(prev => prev ? {
+                ...prev,
+                steps: prev.steps.map(s => s.id === editingStep.id ? { ...s, ...stepData } : s)
+              } : null);
+              showToast('Step updated successfully', 'success');
+              setShowStepModal(false);
+              setEditingStep(null);
+            }}
+          />
+        ) : (
+          <StepEditor
+            step={{
+              id: 'new',
+              stepNumber: campaign.steps.length + 1,
+              day: campaign.steps.length + 1,
+              name: '',
+              description: ''
+            }}
+            isOpen={showStepModal}
+            onClose={() => setShowStepModal(false)}
+            availableTemplates={mockEmailTemplates}
+            onSave={(stepData) => {
+              // Add new step
+              const newStep: CampaignStep = {
+                ...stepData,
+                id: Date.now().toString(),
+                stepNumber: campaign.steps.length + 1,
+                day: campaign.steps.length + 1
+              };
+              setLocalCampaign(prev => prev ? {
+                ...prev,
+                steps: [...prev.steps, newStep]
+              } : null);
+              showToast('Step added successfully', 'success');
+              setShowStepModal(false);
+              setEditingStep(null);
+            }}
+          />
+        )}
+      </ModalWrapper>
+
+      {/* Campaign Scheduler Modal */}
+      <CampaignScheduler
+        isOpen={showSchedulerModal}
+        onClose={() => setShowSchedulerModal(false)}
+        campaign={{
+          id: campaign.id,
+          name: campaign.name
+        }}
+      />
+    </div>
   );
 };
 

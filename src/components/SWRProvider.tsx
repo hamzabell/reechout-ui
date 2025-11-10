@@ -11,27 +11,34 @@ export const SWRProvider: React.FC<SWRProviderProps> = ({ children }) => {
   const { showToast } = useToast();
 
   // Global error handler for SWR
-  const handleError = (error: Error, key: string) => {
+  const handleError = (error: any, key: string) => {
     console.error("SWR Error:", error, "Key:", key);
 
+    // Convert any error to a string message for display
+    const errorMessage = error instanceof Error ? error.message : String(error);
+
     // Show user-friendly error messages
-    if (error.message.includes("Authentication expired")) {
+    if (errorMessage.includes("Authentication expired")) {
       showToast("Your session has expired. Please log in again.", "error");
       // Handle logout/redirect to login
       window.location.href = "/login";
     } else if (
-      error.message.includes("Network") ||
-      error.message.includes("fetch")
+      errorMessage.includes("Network") ||
+      errorMessage.includes("fetch")
     ) {
       showToast("Network error. Please check your connection.", "error");
-    } else if (error.message.includes("403")) {
+    } else if (errorMessage.includes("403")) {
       showToast("You do not have permission to perform this action.", "error");
-    } else if (error.message.includes("404")) {
+    } else if (errorMessage.includes("404")) {
       showToast("The requested resource was not found.", "error");
-    } else if (error.message.includes("500")) {
+    } else if (errorMessage.includes("405")) {
+      showToast("The requested method is not allowed for this endpoint.", "error");
+    } else if (errorMessage.includes("500")) {
       showToast("Server error. Please try again later.", "error");
+    } else if (errorMessage.includes("Method not allowed")) {
+      showToast("The requested method is not allowed for this endpoint.", "error");
     } else {
-      showToast(error.message || "An unexpected error occurred.", "error");
+      showToast(errorMessage || "An unexpected error occurred.", "error");
     }
   };
 

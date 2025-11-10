@@ -1,6 +1,6 @@
 import useSWR, { mutate } from 'swr';
 import { Campaign } from '../types';
-import { swrConfig, realtimeConfig } from '../lib/swr-config';
+import { swrConfig, realtimeConfig, swrSequenceDetailsFetcher } from '../lib/swr-config';
 import { useSWRMutation, useOptimisticMutation } from './useSWRMutation';
 
 export interface CampaignFilters {
@@ -133,6 +133,57 @@ export const useCreateCampaign = () => {
   );
 };
 
+// Hook for creating empty sequences
+export const useCreateSequence = () => {
+  return useSWRMutation(
+    '/campaigns-create-sequence',
+    'POST',
+    {
+      invalidateQueries: ['/campaigns/advanced'],
+      showToast: false, // Handle manually in component
+    }
+  );
+};
+
+// Hook for fetching sequence details
+export const useSequenceDetails = (sequenceId: string | null) => {
+  const { data, error, isLoading, isValidating, mutate } = useSWR(
+    sequenceId ? ['/campaigns-get-sequence-details', { sequenceId }] : null,
+    {
+      fetcher: swrSequenceDetailsFetcher,
+      revalidateOnFocus: true,
+      revalidateOnReconnect: true,
+      refreshWhenOffline: false,
+      refreshWhenHidden: false,
+      errorRetryCount: 3,
+      errorRetryInterval: 5000,
+      dedupingInterval: 2000,
+      focusThrottleInterval: 5000,
+      loadingTimeout: 30000,
+      keepPreviousData: false,
+    }
+  );
+
+  // Return default values when sequence doesn't exist or there's an error
+  const campaign = data?.campaign || (sequenceId ? {
+    id: sequenceId,
+    name: 'New Campaign',
+    description: '',
+    status: 'DRAFT' as const,
+    createdAt: new Date().toISOString(),
+    steps: [],
+    prospects: [],
+  } : null);
+
+  return {
+    campaign,
+    isLoading,
+    isValidating,
+    error: (error && !data?.campaign) ? error : null, // Only show error if we don't have default data
+    mutate,
+  };
+};
+
 // Hook for updating campaigns
 export const useUpdateCampaign = (campaignId: string) => {
   return useOptimisticMutation(
@@ -177,43 +228,7 @@ export const useDuplicateCampaign = () => {
   );
 };
 
-// Hook for pausing campaigns
-export const usePauseCampaign = (campaignId: string) => {
-  return useOptimisticMutation(
-    `/campaigns/${campaignId}/pause`,
-    'PUT',
-    () => (current: Campaign) => ({
-      ...current,
-      status: 'paused' as const,
-    }),
-    {
-      invalidateQueries: [
-        `/campaigns/${campaignId}`,
-        'campaigns',
-        '/campaigns/advanced'
-      ],
-    }
-  );
-};
 
-// Hook for resuming campaigns
-export const useResumeCampaign = (campaignId: string) => {
-  return useOptimisticMutation(
-    `/campaigns/${campaignId}/resume`,
-    'PUT',
-    () => (current: Campaign) => ({
-      ...current,
-      status: 'sending' as const,
-    }),
-    {
-      invalidateQueries: [
-        `/campaigns/${campaignId}`,
-        'campaigns',
-        '/campaigns/advanced'
-      ],
-    }
-  );
-};
 
 // Hook for sending campaigns
 export const useSendCampaign = (campaignId: string) => {
@@ -266,6 +281,96 @@ export const useScheduleEmails = (campaignId: string) => {
         `/campaigns/${campaignId}/emails`,
         'campaigns'
       ],
+    }
+  );
+};
+
+// Hook for starting campaigns
+export const useStartCampaign = (campaignId: string) => {
+  return useOptimisticMutation(
+    '/campaigns-control',
+    'POST',
+    () => (current: Campaign) => ({
+      ...current,
+      status: 'ACTIVE' as const,
+      startedAt: new Date().toISOString(),
+    }),
+    {
+      invalidateQueries: [
+        `/campaigns/${campaignId}`,
+        'campaigns',
+        '/campaigns/advanced'
+      ],
+    }
+  );
+};
+
+// Hook for pausing campaigns
+export const usePauseCampaign = (campaignId: string) => {
+  return useOptimisticMutation(
+    '/campaigns-control',
+    'POST',
+    () => (current: Campaign) => ({
+      ...current,
+      status: 'PAUSED' as const,
+      pausedAt: new Date().toISOString(),
+    }),
+    {
+      invalidateQueries: [
+        `/campaigns/${campaignId}`,
+        'campaigns',
+        '/campaigns/advanced'
+      ],
+    }
+  );
+};
+
+// Hook for resuming campaigns
+export const useResumeCampaign = (campaignId: string) => {
+  return useOptimisticMutation(
+    '/campaigns-control',
+    'POST',
+    () => (current: Campaign) => ({
+      ...current,
+      status: 'ACTIVE' as const,
+      pausedAt: null,
+    }),
+    {
+      invalidateQueries: [
+        `/campaigns/${campaignId}`,
+        'campaigns',
+        '/campaigns/advanced'
+      ],
+    }
+  );
+};
+
+// Hook for stopping/cancelling campaigns
+export const useStopCampaign = (campaignId: string) => {
+  return useOptimisticMutation(
+    '/campaigns-control',
+    'POST',
+    () => (current: Campaign) => ({
+      ...current,
+      status: 'CANCELLED' as const,
+    }),
+    {
+      invalidateQueries: [
+        `/campaigns/${campaignId}`,
+        'campaigns',
+        '/campaigns/advanced'
+      ],
+    }
+  );
+};
+
+// Hook for scheduling campaigns
+export const useScheduleCampaign = () => {
+  return useSWRMutation(
+    '/campaigns-schedule',
+    'POST',
+    {
+      invalidateQueries: ['campaigns', '/campaigns/advanced'],
     }
   );
 };
