@@ -1,4 +1,4 @@
-import useSWR, { mutate } from 'swr';
+import useSWR, { mutate, mutate as globalMutate } from 'swr';
 import { Campaign } from '../types';
 import { swrConfig, realtimeConfig, swrSequenceDetailsFetcher } from '../lib/swr-config';
 import { useSWRMutation, useOptimisticMutation } from './useSWRMutation';
@@ -186,20 +186,37 @@ export const useSequenceDetails = (sequenceId: string | null) => {
 
 // Hook for updating campaigns
 export const useUpdateCampaign = (campaignId: string) => {
-  return useOptimisticMutation(
-    `/campaigns/${campaignId}`,
+  return useSWRMutation(
+    '/campaigns-update-sequence',
     'PUT',
-    (variables: Partial<Campaign>) => (current: Campaign) => ({
-      ...current,
-      ...variables,
-      updatedAt: new Date().toISOString(),
-    }),
     {
+      optimisticUpdate: (variables: any) => {
+        // Extract only the campaign fields from the variables
+        const { userId, sequenceId, ...campaignFields } = variables;
+        return campaignFields;
+      },
       invalidateQueries: [
-        `/campaigns/${campaignId}`,
         'campaigns',
         '/campaigns/advanced'
       ],
+      onSuccess: (data, variables, optimisticData) => {
+        // Update the sequence details cache with the optimistic data
+        const sequenceKey = ['/campaigns-get-sequence-details', { sequenceId: campaignId }];
+        globalMutate(sequenceKey, (current: any) => {
+          if (current?.campaign) {
+            return {
+              ...current,
+              campaign: {
+                ...current.campaign,
+                ...optimisticData,
+                updatedAt: new Date().toISOString(),
+              }
+            };
+          }
+          return current;
+        }, false);
+      },
+      showToast: false, // Handle manually in component
     }
   );
 };

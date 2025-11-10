@@ -140,10 +140,13 @@ export const useOptimisticMutation = <TData = any, TVariables = any>(
           throw new Error(`Unsupported method: ${method}`);
       }
 
-      // Revalidate to get fresh data from server
-      queryKeys.forEach(key => {
-        globalMutate(key);
-      });
+      // Revalidate only non-optimistic queries
+      // Skip the first query (usually the current resource) to preserve optimistic data
+      if (queryKeys.length > 1) {
+        queryKeys.slice(1).forEach(key => {
+          globalMutate(key);
+        });
+      }
 
       // Call success callback
       if (options?.onSuccess) {

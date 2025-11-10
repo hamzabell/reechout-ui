@@ -123,6 +123,8 @@ const SequenceDetailsPage: React.FC = () => {
   const [hasChanges, setHasChanges] = useState(false);
   const [formErrors, setFormErrors] = useState<{name?: string}>({});
 
+
+
   // Use API data directly, or local data if we have unsaved changes
   const campaign = localCampaign || apiCampaign;
   const isLoading = apiLoading;
@@ -142,6 +144,8 @@ const SequenceDetailsPage: React.FC = () => {
     setFormErrors(errors);
     return Object.keys(errors).length === 0;
   };
+
+
 
   // Save campaign function
   const saveCampaign = async () => {
@@ -168,29 +172,34 @@ const SequenceDetailsPage: React.FC = () => {
         // Clear local campaign to sync with API data
         setLocalCampaign(null);
         setHasChanges(false);
-      } else {
-        // Update existing campaign - only send changed fields
+      } else if (localCampaign && hasChanges) {
+        // For existing campaigns, use optimistic updates
         const updateData: any = {
           userId: user?.id || user?.neonId,
           sequenceId: campaign.id
         };
         
-        if (localCampaign) {
-          if (localCampaign.name !== apiCampaign?.name) {
-            updateData.name = localCampaign.name;
-          }
-          if (localCampaign.description !== apiCampaign?.description) {
-            updateData.description = localCampaign.description;
-          }
+        // Prepare the optimistic update data (only campaign fields)
+        const optimisticUpdateData: Partial<Campaign> = {};
+        
+        // Only include fields that actually changed
+        if (localCampaign.name !== apiCampaign?.name) {
+          updateData.name = localCampaign.name;
+          optimisticUpdateData.name = localCampaign.name;
+        }
+        if (localCampaign.description !== apiCampaign?.description) {
+          updateData.description = localCampaign.description;
+          optimisticUpdateData.description = localCampaign.description;
         }
         
-        // Only update if there are actual changes to name/description
-        if (Object.keys(updateData).length > 2) { // > 2 because userId and sequenceId are always included
-          await updateCampaign.trigger(updateData);
-          showToast('Campaign updated successfully', 'success');
-          setLocalCampaign(null);
-          setHasChanges(false);
-        }
+        // Use the optimistic mutation hook for instant updates
+        await updateCampaign.trigger(updateData);
+        showToast('Campaign updated successfully', 'success');
+        
+        // Clear local state immediately after successful trigger
+        // The optimistic update will handle the UI update
+        setLocalCampaign(null);
+        setHasChanges(false);
       }
     } catch (err) {
       showToast('Failed to save campaign', 'error');
@@ -530,7 +539,9 @@ const SequenceDetailsPage: React.FC = () => {
                     type="text"
                     value={localCampaign?.name || campaign.name}
                     onChange={(e) => {
-                      setLocalCampaign(prev => prev ? { ...prev, name: e.target.value } : { ...campaign, name: e.target.value });
+                      const value = e.target.value;
+                      // Always update local state for smooth typing
+                      setLocalCampaign(prev => prev ? { ...prev, name: value } : { ...campaign, name: value });
                       if (formErrors.name) {
                         setFormErrors(prev => ({ ...prev, name: undefined }));
                       }
@@ -548,7 +559,11 @@ const SequenceDetailsPage: React.FC = () => {
                   <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
                   <textarea
                     value={(localCampaign?.description ?? campaign.description) || ''}
-                    onChange={(e) => setLocalCampaign(prev => prev ? { ...prev, description: e.target.value } : { ...campaign, description: e.target.value })}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      // Always update local state for smooth typing
+                      setLocalCampaign(prev => prev ? { ...prev, description: value } : { ...campaign, description: value });
+                    }}
                     rows={3}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     placeholder="Enter campaign description (optional)"
