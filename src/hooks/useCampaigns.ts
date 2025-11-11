@@ -2,6 +2,7 @@ import useSWR, { mutate, mutate as globalMutate } from 'swr';
 import { Campaign } from '../types';
 import { swrConfig, realtimeConfig, swrSequenceDetailsFetcher } from '../lib/swr-config';
 import { useSWRMutation, useOptimisticMutation } from './useSWRMutation';
+import { useCallback } from 'react';
 
 export interface CampaignFilters {
   status?: string;
@@ -379,6 +380,205 @@ export const useStopCampaign = (campaignId: string) => {
       ],
     }
   );
+};
+
+// Hook for adding prospects to campaigns
+export const useAddProspectsToCampaign = (campaignId: string) => {
+  return useSWRMutation(
+    '/campaigns-add-prospects',
+    'POST',
+    {
+      optimisticUpdate: (variables: any) => {
+        // Return optimistic data structure
+        const { prospectIds } = variables;
+        return {
+          success: true,
+          status: 'success',
+          message: `Adding ${prospectIds.length} prospects to campaign...`,
+          added: prospectIds.length,
+          duplicates: 0,
+          campaignProspects: prospectIds.map((id: string, index: number) => ({
+            id: `optimistic-${Date.now()}-${index}`,
+            campaignId,
+            prospectId: id,
+            status: 'NEW',
+            prospect: {
+              id,
+              name: 'Loading...',
+              email: 'Loading...',
+              company: '',
+              title: '',
+              status: 'NEW'
+            }
+          }))
+        };
+      },
+      invalidateQueries: [
+        `/campaigns/${campaignId}`,
+        '/campaigns/advanced',
+        '/campaigns-get-sequence-details',
+        'prospects'
+      ],
+      onSuccess: (data, variables) => {
+        // Update sequence details cache with the new prospects
+        const sequenceKey = ['/campaigns-get-sequence-details', { sequenceId: campaignId }];
+        globalMutate(sequenceKey, (current: any) => {
+          if (current?.campaign && data?.campaignProspects) {
+            const newProspects = data.campaignProspects.map((cp: any) => ({
+              id: cp.id,
+              status: cp.status,
+              prospect: cp.prospect,
+              personalizedEmails: []
+            }));
+            
+            return {
+              ...current,
+              campaign: {
+                ...current.campaign,
+                prospects: [...current.campaign.prospects, ...newProspects]
+              }
+            };
+          }
+          return current;
+        }, false);
+      },
+      showToast: false, // Handle manually in component
+    }
+  );
+};
+
+// Hook for removing prospects from campaigns
+export const useRemoveProspectFromCampaign = (campaignId: string) => {
+  return useSWRMutation(
+    '/campaigns-remove-prospect',
+    'POST',
+    {
+      optimisticUpdate: (variables: any) => {
+        const { prospectId } = variables;
+        // Return optimistic data structure
+        return {
+          success: true,
+          message: 'Removing prospect from campaign...',
+          campaignId,
+          prospectId
+        };
+      },
+      onSuccess: (data, variables, optimisticData) => {
+        // Update the sequence details cache to remove the prospect optimistically
+        const sequenceKey = ['/campaigns-get-sequence-details', { sequenceId: campaignId }];
+        globalMutate(sequenceKey, (current: any) => {
+          if (current?.campaign) {
+            return {
+              ...current,
+              campaign: {
+                ...current.campaign,
+                prospects: current.campaign.prospects.filter((p: any) => p.prospect.id !== variables.prospectId)
+              }
+            };
+          }
+          return current;
+        }, false);
+      },
+      onError: (error, variables, optimisticData) => {
+        // Rollback by revalidating the cache
+        const sequenceKey = ['/campaigns-get-sequence-details', { sequenceId: campaignId }];
+        globalMutate(sequenceKey);
+      },
+      invalidateQueries: [
+        `/campaigns/${campaignId}`,
+        '/campaigns/advanced',
+        '/campaigns-get-sequence-details',
+        'prospects'
+      ],
+      showToast: false // Handle manually in component
+    }
+  );
+};
+
+// Hook for pausing prospects in campaigns
+export const usePauseProspect = (campaignId: string) => {
+  const { trigger, isMutating } = useSWRMutation(
+    '/campaigns-prospect-status',
+    'POST',
+    {
+      onSuccess: () => {
+        // Mutate the campaign details to refresh the data
+        globalMutate(['/campaigns-get-sequence-details', { sequenceId: campaignId }]);
+      }
+    }
+  );
+
+  const pauseProspectTrigger = useCallback(async (variables: any) => {
+    // Apply optimistic update
+    const queryKey = ['/campaigns-get-sequence-details', { sequenceId: campaignId }];
+    globalMutate(queryKey, (current: any) => {
+      if (current?.campaign) {
+        const { prospectId } = variables;
+        return {
+          ...current,
+          campaign: {
+            ...current.campaign,
+            prospects: current.campaign.prospects.map((p: any) => 
+              p.prospect.id === prospectId 
+                ? { ...p, isPaused: true, pausedAt: new Date().toISOString(), status: 'PAUSED' }
+                : p
+            )
+          }
+        };
+      }
+      return current;
+    }, false);
+
+    return trigger(variables);
+  }, [campaignId, trigger]);
+
+  return {
+    trigger: pauseProspectTrigger,
+    isMutating
+  };
+};
+
+// Hook for resuming prospects in campaigns
+export const useResumeProspect = (campaignId: string) => {
+  const { trigger, isMutating } = useSWRMutation(
+    '/campaigns-prospect-status',
+    'POST',
+    {
+      onSuccess: () => {
+        // Mutate the campaign details to refresh the data
+        globalMutate(['/campaigns-get-sequence-details', { sequenceId: campaignId }]);
+      }
+    }
+  );
+
+  const resumeProspectTrigger = useCallback(async (variables: any) => {
+    // Apply optimistic update
+    const queryKey = ['/campaigns-get-sequence-details', { sequenceId: campaignId }];
+    globalMutate(queryKey, (current: any) => {
+      if (current?.campaign) {
+        const { prospectId } = variables;
+        return {
+          ...current,
+          campaign: {
+            ...current.campaign,
+            prospects: current.campaign.prospects.map((p: any) => 
+              p.prospect.id === prospectId 
+                ? { ...p, isPaused: false, pausedAt: null, status: 'RUNNING' }
+                : p
+            )
+          }
+        };
+      }
+      return current;
+    }, false);
+
+    return trigger(variables);
+  }, [campaignId, trigger]);
+
+  return {
+    trigger: resumeProspectTrigger,
+    isMutating
+  };
 };
 
 // Hook for scheduling campaigns

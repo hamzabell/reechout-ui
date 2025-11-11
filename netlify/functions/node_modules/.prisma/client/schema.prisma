@@ -149,6 +149,7 @@ model CampaignProspect {
   campaignId         String
   prospectId         String
   addedAt            DateTime            @default(now())
+  pausedAt           DateTime?
   status             ProspectStatus      @default(NEW)
   sequence           Sequence            @relation(fields: [campaignId], references: [id], onDelete: Cascade)
   prospect           Prospect            @relation(fields: [prospectId], references: [id], onDelete: Cascade)
@@ -235,6 +236,8 @@ enum SequenceStatus {
 
 enum ProspectStatus {
   NEW
+  RUNNING
+  PAUSED
   CONTACTED
   ENGAGED
   REPLIED
@@ -243,6 +246,7 @@ enum ProspectStatus {
   OPTED_OUT
   CONVERTED
   BOUNCED
+  ENDED
 }
 
 enum EmailStatus {

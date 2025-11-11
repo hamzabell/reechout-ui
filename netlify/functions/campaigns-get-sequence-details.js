@@ -113,20 +113,25 @@ exports.handler = async (event, context) => {
         repliedAt: email.repliedAt?.toISOString()
       }));
 
-      // Calculate status based on personalized emails
-      const hasSentEmails = personalizedEmails.some(email => email.status === 'sent');
-      const hasCompletedEmails = personalizedEmails.some(email => email.status === 'completed');
-      
+      // If paused, status should be PAUSED, otherwise calculate based on personalized emails
       let status = 'PENDING';
-      if (hasCompletedEmails) {
-        status = 'COMPLETED';
-      } else if (hasSentEmails) {
-        status = 'ACTIVE';
+      if (cp.pausedAt) {
+        status = 'PAUSED';
+      } else {
+        const hasSentEmails = personalizedEmails.some(email => email.status === 'sent');
+        const hasCompletedEmails = personalizedEmails.some(email => email.status === 'completed');
+        
+        if (hasCompletedEmails) {
+          status = 'COMPLETED';
+        } else if (hasSentEmails) {
+          status = 'ACTIVE';
+        }
       }
 
       return {
         id: cp.id,
         status: status,
+        pausedAt: cp.pausedAt?.toISOString(),
         prospect: {
           id: cp.prospect.id,
           name: cp.prospect.name,
@@ -248,6 +253,7 @@ exports.handler = async (event, context) => {
       ...transformedSequence,
       steps: transformedSteps,
       campaignProspects: transformedCampaignProspects,
+      prospects: transformedCampaignProspects, // Add prospects field for frontend compatibility
       statistics: {
         totalSteps: transformedSteps.length,
         emailSteps,

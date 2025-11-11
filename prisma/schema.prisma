@@ -8,22 +8,22 @@ datasource db {
 }
 
 model User {
-  id         String           @id @default(cuid())
-  neonUserId String           @unique
-  email      String           @unique
-  name       String
-  company    String?
-  title      String?
-  isActive   Boolean          @default(true)
-  lastLoginAt DateTime?
-  emailConfirmed Boolean      @default(false)
-  createdAt  DateTime         @default(now())
-  updatedAt  DateTime         @updatedAt
-  campaigns  Sequence[]
+  id             String           @id @default(cuid())
+  neonUserId     String           @unique
+  email          String           @unique
+  name           String
+  company        String?
+  title          String?
+  isActive       Boolean          @default(true)
+  lastLoginAt    DateTime?
+  emailConfirmed Boolean          @default(false)
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+  campaigns      Sequence[]
   emailTemplates EmailTemplate[]
-  prospects  Prospect[]
-  sessions   Session[]
-  tasks      TaskAssignment[]
+  prospects      Prospect[]
+  sessions       Session[]
+  tasks          TaskAssignment[]
 
   @@map("users")
 }
@@ -149,6 +149,7 @@ model CampaignProspect {
   campaignId         String
   prospectId         String
   addedAt            DateTime            @default(now())
+  pausedAt           DateTime?
   status             ProspectStatus      @default(NEW)
   sequence           Sequence            @relation(fields: [campaignId], references: [id], onDelete: Cascade)
   prospect           Prospect            @relation(fields: [prospectId], references: [id], onDelete: Cascade)
@@ -235,6 +236,8 @@ enum SequenceStatus {
 
 enum ProspectStatus {
   NEW
+  RUNNING
+  PAUSED
   CONTACTED
   ENGAGED
   REPLIED
@@ -243,6 +246,7 @@ enum ProspectStatus {
   OPTED_OUT
   CONVERTED
   BOUNCED
+  ENDED
 }
 
 enum EmailStatus {

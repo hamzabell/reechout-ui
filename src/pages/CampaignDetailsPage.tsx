@@ -8,7 +8,6 @@ import {
   FiList,
   FiInfo,
   FiSave,
-  FiCalendar,
 } from 'react-icons/fi';
 
 import StepEditor from '../components/campaigns/StepEditor';
@@ -16,9 +15,11 @@ import StepCard from '../components/campaigns/StepCard';
 import CampaignControl from '../components/campaigns/CampaignControl';
 import CampaignScheduler from '../components/campaigns/CampaignScheduler';
 import ModalWrapper from '../components/ModalWrapper';
+import AddProspectsToCampaignModal from '../components/AddProspectsToCampaignModal';
+import ProspectDetailsModal from '../components/ProspectDetailsModal';
 import { useConfirm } from '../hooks/useConfirm';
 import { useToast } from '../hooks/useToast';
-import { useSequenceDetails, useUpdateCampaign, useCreateSequence } from '../hooks/useCampaigns';
+import { useSequenceDetails, useUpdateCampaign, useCreateSequence, useAddProspectsToCampaign, useRemoveProspectFromCampaign, usePauseProspect, useResumeProspect } from '../hooks/useCampaigns';
 import { useAuth } from '../hooks/useAuth';
 
 type ViewMode = 'overview' | 'steps' | 'prospects' | 'settings';
@@ -56,6 +57,7 @@ interface CampaignStep {
 interface CampaignProspect {
   id: string;
   status: string;
+  pausedAt?: string;
   prospect: {
     id: string;
     name: string;
@@ -65,6 +67,7 @@ interface CampaignProspect {
     location?: string;
     industry?: string;
     notes?: string;
+    researchData?: any;
   };
   personalizedEmails: Array<{
     id: string;
@@ -105,6 +108,10 @@ const SequenceDetailsPage: React.FC = () => {
   const [showStepModal, setShowStepModal] = useState(false);
   const [editingStep, setEditingStep] = useState<CampaignStep | null>(null);
   const [showSchedulerModal, setShowSchedulerModal] = useState(false);
+  const [showAddProspectsModal, setShowAddProspectsModal] = useState(false);
+  const [selectedProspect, setSelectedProspect] = useState<CampaignProspect | null>(null);
+  const [showProspectDetailsModal, setShowProspectDetailsModal] = useState(false);
+  const [removingProspectIds, setRemovingProspectIds] = useState<Set<string>>(new Set());
 
   // Hooks for modals and notifications
   const { confirmDanger } = useConfirm();
@@ -113,6 +120,10 @@ const SequenceDetailsPage: React.FC = () => {
   // Mutation hooks
   const updateCampaign = useUpdateCampaign(id || '');
   const createSequence = useCreateSequence();
+  const addProspectsToCampaign = useAddProspectsToCampaign(id || '');
+  const removeProspectFromCampaign = useRemoveProspectFromCampaign(id || '');
+  const pauseProspect = usePauseProspect(id || '');
+  const resumeProspect = useResumeProspect(id || '');
 
   // Fetch sequence details from API
   const { campaign: apiCampaign, isLoading: apiLoading, error: apiError } = useSequenceDetails(id || null);
@@ -144,6 +155,109 @@ const SequenceDetailsPage: React.FC = () => {
     setFormErrors(errors);
     return Object.keys(errors).length === 0;
   };
+
+  // Handle adding prospects to campaign
+  const handleAddProspects = async (prospectIds: string[]) => {
+    if (!id || !user?.id) return;
+    
+    try {
+      await addProspectsToCampaign.trigger({
+        campaignId: id,
+        prospectIds,
+        userId: user.id || user.neonId
+      });
+      showToast('Prospects added successfully', 'success');
+    } catch (error) {
+      console.error('Error adding prospects:', error);
+      showToast('Failed to add prospects', 'error');
+    }
+  };
+
+  // Handle removing prospect from campaign
+  const handleRemoveProspect = async (prospectId: string, prospectName: string) => {
+    if (!id || !user?.id) return;
+    
+    const confirmed = await confirmDanger({
+      message: `Are you sure you want to remove ${prospectName} from this campaign?`,
+      onConfirm: () => {}
+    });
+    
+    if (confirmed) {
+      // Add to removing set to show loading state for this specific prospect
+      setRemovingProspectIds(prev => new Set(prev).add(prospectId));
+      
+      try {
+        await removeProspectFromCampaign.trigger({
+          campaignId: id,
+          prospectId,
+          userId: user.id || user.neonId
+        });
+        showToast('Prospect removed successfully', 'success');
+      } catch (error) {
+        console.error('Error removing prospect:', error);
+        showToast('Failed to remove prospect', 'error');
+        // Error will be automatically rolled back by the optimistic mutation
+      } finally {
+        // Remove from removing set after operation completes
+        setRemovingProspectIds(prev => {
+          const newSet = new Set(prev);
+          newSet.delete(prospectId);
+          return newSet;
+        });
+      }
+    }
+  };
+
+  // Handle viewing prospect details
+  const handleViewProspect = (prospect: CampaignProspect) => {
+    setSelectedProspect(prospect);
+    setShowProspectDetailsModal(true);
+  };
+
+  // Handle pausing prospect
+  const handlePauseProspect = async (prospectId: string) => {
+    if (!id || !user?.id) return;
+    
+    try {
+      await pauseProspect.trigger({
+        campaignId: id,
+        prospectId,
+        userId: user.id || user.neonId,
+        action: 'pause'
+      });
+      showToast('Prospect paused successfully', 'success');
+      setShowProspectDetailsModal(false);
+    } catch (error) {
+      console.error('Error pausing prospect:', error);
+      showToast('Failed to pause prospect', 'error');
+    }
+  };
+
+  // Handle resuming prospect
+  const handleResumeProspect = async (prospectId: string) => {
+    if (!id || !user?.id) return;
+    
+    try {
+      await resumeProspect.trigger({
+        campaignId: id,
+        prospectId,
+        userId: user.id || user.neonId,
+        action: 'resume'
+      });
+      showToast('Prospect resumed successfully', 'success');
+      setShowProspectDetailsModal(false);
+    } catch (error) {
+      console.error('Error resuming prospect:', error);
+      showToast('Failed to resume prospect', 'error');
+    }
+  };
+
+  // Get existing prospect IDs for the modal
+  const existingProspectIds = campaign?.prospects
+    .filter((p: CampaignProspect) => p?.prospect?.id)
+    .map((p: CampaignProspect) => p.prospect.id) || [];
+
+
 
 
 
@@ -392,7 +506,7 @@ const SequenceDetailsPage: React.FC = () => {
               </div>
             ) : (
               <div className="space-y-4">
-                {campaign.steps.map((step: CampaignStep, index: number) => (
+                {campaign.steps.map((step: CampaignStep) => (
                   <StepCard
                     key={step.id}
                     step={step}
@@ -423,19 +537,27 @@ const SequenceDetailsPage: React.FC = () => {
         {viewMode === 'prospects' && (
           <div className="space-y-4">
             <div className="flex justify-between items-center mb-6">
-              <h2 className="text-xl font-semibold text-gray-900">Campaign Prospects</h2>
-              <button className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+              <h2 className="text-xl font-semibold text-gray-900">
+                Campaign Prospects ({campaign.prospects?.length || 0})
+              </h2>
+              <button 
+                onClick={() => setShowAddProspectsModal(true)}
+                className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+              >
                 <FiPlus className="w-4 h-4" />
                 Add Prospects
               </button>
             </div>
             
-            {campaign.prospects.length === 0 ? (
+            {!campaign.prospects || campaign.prospects.length === 0 ? (
               <div className="bg-white rounded-lg shadow-sm p-12 text-center">
                 <FiUser className="w-12 h-12 text-gray-400 mx-auto mb-4" />
                 <h3 className="text-lg font-medium text-gray-900 mb-2">No prospects yet</h3>
                 <p className="text-gray-500 mb-4">Add prospects to your campaign to start outreach</p>
-                <button className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 mx-auto">
+                <button 
+                  onClick={() => setShowAddProspectsModal(true)}
+                  className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 mx-auto"
+                >
                   <FiPlus className="w-4 h-4" />
                   Add First Prospect
                 </button>
@@ -453,7 +575,10 @@ const SequenceDetailsPage: React.FC = () => {
                           Company
                         </th>
                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Status
+                          Campaign Status
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Emails
                         </th>
                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                           Actions
@@ -461,32 +586,58 @@ const SequenceDetailsPage: React.FC = () => {
                       </tr>
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-200">
-                      {campaign.prospects.map((prospect: CampaignProspect) => (
-                        <tr key={prospect.id}>
+                      {campaign.prospects && campaign.prospects.length > 0 && campaign.prospects
+                        .filter((cp: CampaignProspect) => cp?.prospect?.id)
+                        .map((campaignProspect: CampaignProspect) => (
+                        <tr key={campaignProspect.id}>
                           <td className="px-6 py-4 whitespace-nowrap">
                             <div>
-                              <div className="text-sm font-medium text-gray-900">{prospect.prospect.name}</div>
-                              <div className="text-sm text-gray-500">{prospect.prospect.email}</div>
+                              <div className="text-sm font-medium text-gray-900">
+                                {campaignProspect.prospect?.name || 'Unknown'}
+                              </div>
+                              <div className="text-sm text-gray-500">
+                                {campaignProspect.prospect?.email || 'No email'}
+                              </div>
+                              {campaignProspect.prospect?.title && (
+                                <div className="text-xs text-gray-400">
+                                  {campaignProspect.prospect.title}
+                                </div>
+                              )}
                             </div>
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                            {prospect.prospect.company}
+                            {campaignProspect.prospect?.company || '-'}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap">
                             <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                              prospect.status === 'ACTIVE' ? 'bg-green-100 text-green-800' :
-                              prospect.status === 'COMPLETED' ? 'bg-blue-100 text-blue-800' :
-                              'bg-gray-100 text-gray-800'
+                              campaignProspect.pausedAt ? 'bg-orange-100 text-orange-800' :
+                              campaignProspect.status === 'ENDED' ? 'bg-gray-100 text-gray-800' :
+                              'bg-green-100 text-green-800'
                             }`}>
-                              {prospect.status}
+                              {campaignProspect.pausedAt ? 'Paused' :
+                               campaignProspect.status === 'ENDED' ? 'Ended' :
+                               'Running'}
                             </span>
                           </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                            {campaignProspect.personalizedEmails?.length || 0}
+                          </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                            <button className="text-blue-600 hover:text-blue-900 mr-3">
-                              Edit
+                            <button 
+                              onClick={() => handleViewProspect(campaignProspect)}
+                              className="text-blue-600 hover:text-blue-900 mr-3"
+                            >
+                              View
                             </button>
-                            <button className="text-red-600 hover:text-red-900">
-                              Remove
+                            <button 
+                              onClick={() => handleRemoveProspect(
+                                campaignProspect.prospect?.id || '', 
+                                campaignProspect.prospect?.name || 'Unknown'
+                              )}
+                              className="text-red-600 hover:text-red-900"
+                              disabled={removingProspectIds.has(campaignProspect.prospect?.id || '')}
+                            >
+                              {removingProspectIds.has(campaignProspect.prospect?.id || '') ? 'Removing...' : 'Remove'}
                             </button>
                           </td>
                         </tr>
@@ -665,6 +816,27 @@ const SequenceDetailsPage: React.FC = () => {
           id: campaign.id,
           name: campaign.name
         }}
+      />
+
+      {/* Add Prospects to Campaign Modal */}
+      <AddProspectsToCampaignModal
+        isOpen={showAddProspectsModal}
+        onClose={() => setShowAddProspectsModal(false)}
+        onAddProspects={handleAddProspects}
+        campaignId={campaign.id}
+        existingProspectIds={existingProspectIds}
+        loading={addProspectsToCampaign.isMutating}
+      />
+
+      {/* Prospect Details Modal */}
+      <ProspectDetailsModal
+        isOpen={showProspectDetailsModal}
+        onClose={() => setShowProspectDetailsModal(false)}
+        prospect={selectedProspect}
+        onPauseProspect={handlePauseProspect}
+        onResumeProspect={handleResumeProspect}
+        onDeleteProspect={handleRemoveProspect}
+        isUpdating={pauseProspect.isMutating || resumeProspect.isMutating || removingProspectIds.has(selectedProspect?.prospect?.id || '')}
       />
     </div>
   );

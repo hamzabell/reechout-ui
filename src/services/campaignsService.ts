@@ -659,8 +659,53 @@ export class CampaignsService {
   }
 
   /**
-   * Duplicate a campaign
-   */
+    * Add prospects to a campaign
+    */
+  static async addProspectsToCampaign(campaignId: string, prospectIds: string[], userId: string): Promise<{
+    success: boolean;
+    status: string;
+    message: string;
+    added: number;
+    duplicates: number;
+    duplicateProspects: any[];
+    campaignProspects: any[];
+  }> {
+    try {
+      const response = await post('/campaigns-add-prospects', {
+        campaignId,
+        prospectIds,
+        userId
+      });
+      return response;
+    } catch (error) {
+      console.error('Failed to add prospects to campaign:', error);
+      throw new Error(error instanceof Error ? error.message : 'Failed to add prospects to campaign');
+    }
+  }
+
+  /**
+    * Remove a prospect from a campaign
+    */
+  static async removeProspectFromCampaign(campaignId: string, prospectId: string, userId: string): Promise<{
+    success: boolean;
+    message: string;
+  }> {
+    try {
+      const response = await post('/campaigns-remove-prospect', {
+        campaignId,
+        prospectId,
+        userId
+      });
+      return response;
+    } catch (error) {
+      console.error('Failed to remove prospect from campaign:', error);
+      throw new Error(error instanceof Error ? error.message : 'Failed to remove prospect from campaign');
+    }
+  }
+
+  /**
+    * Duplicate a campaign
+    */
   static async duplicateCampaign(campaignId: string, newName: string): Promise<{
     success: boolean;
     message: string;
