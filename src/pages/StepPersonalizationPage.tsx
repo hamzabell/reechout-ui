@@ -29,7 +29,7 @@ interface StepContent {
 
 const StepPersonalizationPage: React.FC = () => {
   const navigate = useNavigate();
-  const { stepNumber } = useParams<{ stepNumber: string }>();
+  const { day } = useParams<{ day: string }>();
 
   // Mock prospects data
   const [prospects] = useState<Prospect[]>([
@@ -231,7 +231,7 @@ const StepPersonalizationPage: React.FC = () => {
           
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-2xl font-bold text-gray-900 mb-1">Step {stepNumber} Personalization</h1>
+              <h1 className="text-2xl font-bold text-gray-900 mb-1">Step {day} Personalization</h1>
               <p className="text-gray-600 text-sm">Configure email personalization for this step</p>
             </div>
             
@@ -255,7 +255,7 @@ const StepPersonalizationPage: React.FC = () => {
                   <FiMail className="w-4 h-4" />
                 </div>
                 <div>
-                  <h3 className="font-semibold text-gray-900">Step {stepNumber} - Email Outreach</h3>
+                  <h3 className="font-semibold text-gray-900">Step {day} - Email Outreach</h3>
                   <div className="flex items-center gap-2 mt-1">
                     <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
                       aiPersonalizationEnabled ? 'bg-purple-100 text-purple-800' : 'bg-gray-100 text-gray-800'
@@ -573,7 +573,7 @@ const StepPersonalizationPage: React.FC = () => {
             <div className="p-6 border-b border-gray-200">
               <div className="flex items-center justify-between">
                 <h3 className="text-lg font-semibold text-gray-900">
-                  Edit Email Content - Step {stepNumber}
+                  Edit Email Content - Step {day}
                 </h3>
                 <button
                   onClick={() => setEditModalOpen(false)}
@@ -634,7 +634,7 @@ const StepPersonalizationPage: React.FC = () => {
             <div className="p-6 border-b border-gray-200">
               <div className="flex items-center justify-between">
                 <h3 className="text-lg font-semibold text-gray-900">
-                  AI Generated Email - Step {stepNumber}
+                  AI Generated Email - Step {day}
                 </h3>
                 <button
                   onClick={() => setAiResultModalOpen(false)}

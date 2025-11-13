@@ -38,7 +38,8 @@ async function apiRequest(endpoint: string, options: RequestInit = {}): Promise<
                            endpoint.startsWith('/password-') ||
                            endpoint.startsWith('/campaigns/') ||
                            endpoint.startsWith('/campaigns-') ||
-                           endpoint.startsWith('/overview-');
+                           endpoint.startsWith('/overview-') ||
+                           endpoint === '/campaigns-delete-sequence-step';
 
   // Convert /campaigns/advanced to /campaigns-advanced for Netlify function naming
   let functionEndpoint = endpoint.replace('/campaigns/advanced', '/campaigns-advanced');

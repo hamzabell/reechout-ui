@@ -114,7 +114,7 @@ exports.handler = async (event, context) => {
         status: email.status.toLowerCase(), // Convert to lowercase for frontend
         stepEmailAction: {
           step: {
-            stepNumber: email.stepEmailAction?.step?.day || 1,
+            day: email.stepEmailAction?.step?.day || 1,
             name: `Day ${email.stepEmailAction?.step?.day || 1}`
           }
         },
@@ -157,7 +157,6 @@ exports.handler = async (event, context) => {
     const transformedSteps = updatedSequence.steps.map(step => {
       const transformedStep = {
         id: step.id,
-        stepNumber: step.day,
         day: step.day,
         name: `Day ${step.day}`,
         description: `Step for day ${step.day}`

@@ -591,3 +591,271 @@ export const useScheduleCampaign = () => {
     }
   );
 };
+
+// Hook for creating sequence steps
+export const useCreateSequenceStep = () => {
+  return useSWRMutation(
+    '/campaigns-create-sequence-step',
+    'POST',
+    {
+      optimisticUpdate: (variables: any) => {
+        const { sequenceId, stepData } = variables;
+        // Generate a temporary ID for optimistic update
+        const tempId = `temp-${Date.now()}`;
+        const optimisticStep = {
+          id: tempId,
+          day: stepData.day || 1,
+          name: stepData.name || `Day ${stepData.day || 1}`,
+          description: stepData.description || '',
+          emailAction: stepData.emailAction || null,
+          taskAction: stepData.taskAction || null
+        };
+
+        // Update sequence details cache immediately with optimistic data
+        const sequenceKey = ['/campaigns-get-sequence-details', { sequenceId }];
+        globalMutate(sequenceKey, (current: any) => {
+          if (current?.campaign) {
+            return {
+              ...current,
+              campaign: {
+                ...current.campaign,
+                steps: [...(current.campaign.steps || []), optimisticStep]
+              }
+            };
+          }
+          return current;
+        }, false);
+
+        return { step: optimisticStep };
+      },
+      invalidateQueries: [], // Remove automatic invalidation to prevent race conditions
+      onSuccess: (data, variables, optimisticData) => {
+        // Replace optimistic step with real step data
+        const sequenceKey = ['/campaigns-get-sequence-details', { sequenceId: variables.sequenceId }];
+        globalMutate(sequenceKey, (current: any) => {
+          if (current?.campaign) {
+            // Replace the optimistic step with the real step
+            const updatedSteps = current.campaign.steps.map((step: any) =>
+              step.id === optimisticData?.step?.id ? data.step : step
+            );
+
+            return {
+              ...current,
+              campaign: {
+                ...current.campaign,
+                steps: updatedSteps
+              }
+            };
+          }
+          return current;
+        }, false);
+      },
+      showToast: true, // Enable automatic toast
+    }
+  );
+};
+
+// Hook for updating sequence steps
+export const useUpdateSequenceStep = () => {
+  return useSWRMutation(
+    '/campaigns-update-sequence-step',
+    'PUT',
+    {
+      optimisticUpdate: (variables: any) => {
+        const { stepId, stepData, sequenceId } = variables;
+
+        // Update the cache immediately with optimistic changes
+        const sequenceKey = ['/campaigns-get-sequence-details', { sequenceId }];
+        globalMutate(sequenceKey, (current: any) => {
+          if (current?.campaign) {
+            return {
+              ...current,
+              campaign: {
+                ...current.campaign,
+                steps: (current.campaign.steps || []).map((step: any) =>
+                  step.id === stepId ? { ...step, ...stepData } : step
+                )
+              }
+            };
+          }
+          return current;
+        }, false);
+
+        // Return optimistic data
+        return {
+          step: {
+            id: stepId,
+            ...stepData
+          }
+        };
+      },
+      invalidateQueries: [], // Don't automatically invalidate to preserve optimistic updates
+      onSuccess: (data, variables, optimisticData) => {
+        // Update sequence details cache with the real updated step
+        const sequenceKey = ['/campaigns-get-sequence-details', { sequenceId: variables.sequenceId }];
+        globalMutate(sequenceKey, (current: any) => {
+          if (current?.campaign) {
+            return {
+              ...current,
+              campaign: {
+                ...current.campaign,
+                steps: (current.campaign.steps || []).map((step: any) =>
+                  step.id === variables.stepId ? data.step : step
+                )
+              }
+            };
+          }
+          return current;
+        }, false);
+      },
+      onError: (error, variables, optimisticData) => {
+        // Rollback by revalidating the cache on error
+        const sequenceKey = ['/campaigns-get-sequence-details', { sequenceId: variables.sequenceId }];
+        globalMutate(sequenceKey);
+      },
+      showToast: false, // Handle manually in component
+    }
+  );
+};
+
+// Hook for deleting sequence steps - force recompile
+export const useDeleteSequenceStep = () => {
+  return useSWRMutation(
+    '/campaigns-delete-sequence-step',
+    'DELETE',
+    {
+      optimisticUpdate: (variables: any) => {
+        const { stepId, sequenceId } = variables;
+
+        // Update the cache immediately with optimistic changes
+        const sequenceKey = ['/campaigns-get-sequence-details', { sequenceId }];
+        globalMutate(sequenceKey, (current: any) => {
+          if (current?.campaign) {
+            const steps = current.campaign.steps || [];
+            const deletedStep = steps.find((step: any) => step.id === stepId);
+
+            if (!deletedStep) return current;
+
+            // Remove the deleted step and apply the same reordering logic as the backend
+            const deletedStepDay = deletedStep.day;
+            
+            const filteredSteps = steps.filter((step: any) => step.id !== stepId);
+            const sortedSteps = filteredSteps.sort((a: any, b: any) => a.day - b.day); // Sort by current day
+            
+            const remainingSteps = sortedSteps.map((step: any) => {
+              let newDay;
+
+              // Apply the backend reordering logic exactly
+              if (deletedStepDay === 1) {
+                // When deleting Day 1, only the next sequential day becomes Day 1
+                // All other steps keep their original day numbers
+                const smallestDay = Math.min(...sortedSteps.map((s: any) => s.day));
+                
+                if (step.day === smallestDay) {
+                  // Only the smallest day becomes Day 1
+                  newDay = 1;
+                } else {
+                  // Keep original day numbers for all other steps
+                  newDay = step.day;
+                }
+              } else {
+                // If we deleted any other day, keep existing day numbers for steps before deleted day
+                // and shift only steps after the deleted day up by 1
+                if (step.day < deletedStepDay) {
+                  // Steps before the deleted day keep their original day numbers
+                  newDay = step.day;
+                } else {
+                  // Steps after the deleted day shift up by 1
+                  newDay = step.day - 1;
+                }
+              }
+
+              return {
+                ...step,
+                day: newDay
+              };
+            });
+
+            return {
+              ...current,
+              campaign: {
+                ...current.campaign,
+                steps: remainingSteps
+              }
+            };
+          }
+          return current;
+        }, false);
+
+        // Return optimistic data
+        return {
+          deletedStepId: stepId,
+          message: 'Step deleted successfully'
+        };
+      },
+      onSuccess: (data, variables, optimisticData) => {
+        // Backend deletion succeeded - optimistic update should already be correct
+        // No additional cache updates needed since we matched backend logic
+        console.log('Step deletion successful:', data);
+      },
+      onError: (error, variables, optimisticData) => {
+        // Rollback by revalidating the cache on error
+        const sequenceKey = ['/campaigns-get-sequence-details', { sequenceId: variables.sequenceId }];
+        globalMutate(sequenceKey);
+        console.error('Step deletion failed, rolling back:', error);
+      },
+      invalidateQueries: [], // Don't automatically invalidate to preserve optimistic updates
+      showToast: false, // Handle manually in component
+    }
+  );
+};
+
+// Hook for reordering sequence steps
+export const useReorderSequenceSteps = () => {
+  return useSWRMutation(
+    '/campaigns-reorder-sequence-steps',
+    'PUT',
+    {
+      optimisticUpdate: (variables: any) => {
+        const { stepOrder } = variables;
+        return {
+          steps: stepOrder.map((item: any, index: number) => ({
+            id: item.stepId,
+            day: index + 1
+          }))
+        };
+      },
+      invalidateQueries: [
+        '/campaigns-get-sequence-details'
+      ],
+      onSuccess: (data, variables, optimisticData) => {
+        // Update sequence details cache with the reordered steps
+        const sequenceKey = ['/campaigns-get-sequence-details', { sequenceId: variables.sequenceId }];
+        globalMutate(sequenceKey, (current: any) => {
+          if (current?.campaign) {
+            // Create a map of step IDs to step data for quick lookup
+            const stepMap = new Map(
+              current.campaign.steps?.map((step: any) => [step.id, step]) || []
+            );
+
+            // Update the steps array with the new order
+            const reorderedSteps = data.steps.map((newStep: any) => {
+              const existingStep = stepMap.get(newStep.id);
+              return existingStep ? { ...existingStep, ...newStep } : newStep;
+            });
+
+            return {
+              ...current,
+              campaign: {
+                ...current.campaign,
+                steps: reorderedSteps
+              }
+            };
+          }
+          return current;
+        }, false);
+      },
+      showToast: false, // Handle manually in component
+    }
+  );
+};

@@ -75,6 +75,14 @@ exports.handler = async (event, context) => {
           }
         },
         steps: {
+          include: {
+            emailAction: {
+              include: {
+                template: true
+              }
+            },
+            taskAction: true
+          },
           orderBy: {
             day: 'asc'
           }
@@ -102,7 +110,7 @@ exports.handler = async (event, context) => {
         status: email.status.toLowerCase(), // Convert to lowercase for frontend
         stepEmailAction: {
           step: {
-            stepNumber: email.stepEmailAction?.step?.day || 1,
+            day: email.stepEmailAction?.step?.day || 1,
             name: `Day ${email.stepEmailAction?.step?.day || 1}`
           }
         },
@@ -150,7 +158,6 @@ exports.handler = async (event, context) => {
     const transformedSteps = sequence.steps.map(step => {
       const transformedStep = {
         id: step.id,
-        stepNumber: step.day,
         day: step.day,
         name: `Day ${step.day}`,
         description: `Step for day ${step.day}`
@@ -175,11 +182,31 @@ exports.handler = async (event, context) => {
 
       // Add task action if present
       if (step.taskAction) {
+        // Determine task type based on the task title/description content
+        let taskType = 'custom'; // default
+        let customTitle = step.taskAction.taskTitle;
+        let customDescription = step.taskAction.taskDescription;
+
+        // Try to infer task type from the task title or description
+        const title = (step.taskAction.taskTitle || '').toLowerCase();
+        const description = (step.taskAction.taskDescription || '').toLowerCase();
+
+        if (title.includes('linkedin') || description.includes('linkedin')) {
+          taskType = 'linkedin';
+        } else if (title.includes('whatsapp') || description.includes('whatsapp')) {
+          taskType = 'whatsapp';
+        } else if (title.includes('call') || description.includes('call')) {
+          taskType = 'call';
+        }
+
         transformedStep.taskAction = {
           id: step.taskAction.id,
-          taskType: 'other',
-          otherTitle: step.taskAction.taskTitle,
-          otherDescription: step.taskAction.taskDescription,
+          taskType: taskType,
+          customTitle: customTitle,
+          linkedinDescription: taskType === 'linkedin' ? customDescription : undefined,
+          whatsappDescription: taskType === 'whatsapp' ? customDescription : undefined,
+          callDescription: taskType === 'call' ? customDescription : undefined,
+          customDescription: taskType === 'custom' ? customDescription : undefined,
           enableEmailNotification: step.taskAction.enableEmailNotification
         };
       }

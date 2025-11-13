@@ -37,12 +37,12 @@ interface Step {
 
 const ProspectPersonalizer: React.FC = () => {
   const navigate = useNavigate();
-  const { prospectId, stepNumber } = useParams<{ prospectId: string; stepNumber: string }>();
+  const { prospectId, day } = useParams<{ prospectId: string; day: string }>();
 
   // Mock step data - in real app, this would come from API
   // Personalization is only available for email steps
   const [step] = useState<Step>({
-    id: parseInt(stepNumber || '2'),
+    id: parseInt(day || '2'),
     name: 'Initial Outreach Email',
     type: 'email', // Only email steps can have personalization
     personalizationEnabled: true, // This specific step is email type and has personalization enabled

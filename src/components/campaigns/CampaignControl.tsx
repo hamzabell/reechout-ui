@@ -103,22 +103,20 @@ const CampaignControl: React.FC<CampaignControlProps> = ({
 
     const confirmed = await confirmDanger({
       message: 'Are you sure you want to stop this campaign? This action cannot be undone.',
-      onConfirm: () => {}
+      onConfirm: async () => {
+        try {
+          await stopCampaign.trigger({
+            sequenceId: campaign.id,
+            action: 'stop',
+            userId: user.id || user.neonId
+          });
+          showToast('Campaign stopped successfully', 'success');
+        } catch (error) {
+          showToast('Failed to stop campaign', 'error');
+          console.error('Stop campaign error:', error);
+        }
+      }
     });
-
-    if (!confirmed) return;
-
-    try {
-      await stopCampaign.trigger({
-        sequenceId: campaign.id,
-        action: 'stop',
-        userId: user.id || user.neonId
-      });
-      showToast('Campaign stopped successfully', 'success');
-    } catch (error) {
-      showToast('Failed to stop campaign', 'error');
-      console.error('Stop campaign error:', error);
-    }
   };
 
   const isProcessing = startCampaign.isMutating || 

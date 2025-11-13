@@ -15,7 +15,6 @@ import {
 
 interface CampaignStep {
   id: string;
-  stepNumber: number;
   day: number;
   name?: string;
   description?: string;
@@ -34,12 +33,12 @@ interface CampaignStep {
   };
   taskAction?: {
     id: string;
-    taskType: 'linkedin' | 'whatsapp' | 'call' | 'other';
-    otherTitle?: string;
+    taskType: 'linkedin' | 'whatsapp' | 'call' | 'custom';
+    customTitle?: string;
     linkedinDescription?: string;
     whatsappDescription?: string;
     callDescription?: string;
-    otherDescription?: string;
+    customDescription?: string;
     enableEmailNotification: boolean;
   };
 }
@@ -97,10 +96,10 @@ const StepReorder: React.FC<StepReorderProps> = ({
     newSteps.splice(draggedIndex, 1);
     newSteps.splice(dropIndex, 0, draggedStep);
 
-    // Update step numbers
+    // Update days
     const updatedSteps = newSteps.map((step, index) => ({
       ...step,
-      stepNumber: index + 1,
+      day: index + 1,
     }));
 
     setReorderedSteps(updatedSteps);
@@ -119,7 +118,7 @@ const StepReorder: React.FC<StepReorderProps> = ({
 
     const updatedSteps = newSteps.map((step, idx) => ({
       ...step,
-      stepNumber: idx + 1,
+      day: idx + 1,
     }));
 
     setReorderedSteps(updatedSteps);
@@ -132,7 +131,7 @@ const StepReorder: React.FC<StepReorderProps> = ({
 
     const updatedSteps = newSteps.map((step, idx) => ({
       ...step,
-      stepNumber: idx + 1,
+      day: idx + 1,
     }));
 
     setReorderedSteps(updatedSteps);
@@ -209,13 +208,13 @@ const StepReorder: React.FC<StepReorderProps> = ({
 
                       {/* Step Number */}
                       <div className="w-8 h-8 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center font-semibold text-sm flex-shrink-0">
-                        {step.stepNumber}
+                        {step.day}
                       </div>
 
                       {/* Step Info */}
                       <div className="flex-1 min-w-0">
                         <h4 className="font-medium text-gray-900 truncate">
-                          {step.name || `Step ${step.stepNumber}`}
+                          {step.name || `Step ${step.day}`}
                         </h4>
                         <p className="text-sm text-gray-600 truncate">
                           Day {step.day}
@@ -294,7 +293,7 @@ const StepReorder: React.FC<StepReorderProps> = ({
                         <div className="inline-flex items-center gap-1 px-2 py-1 bg-purple-100 text-purple-800 rounded text-xs">
                           <FiCheckSquare className="w-3 h-3" />
                           {step.taskAction.taskType.charAt(0).toUpperCase() + step.taskAction.taskType.slice(1)}
-                          {step.taskAction.taskType === 'other' && step.taskAction.otherTitle && ` - ${step.taskAction.otherTitle}`}
+                          {step.taskAction.taskType === 'custom' && step.taskAction.customTitle && ` - ${step.taskAction.customTitle}`}
                           {step.taskAction.enableEmailNotification && (
                             <span className="ml-1 bg-purple-200 px-1 rounded">Email</span>
                           )}

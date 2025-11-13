@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import ModalWrapper from '../ModalWrapper';
 import CustomEmailBodyEditor from '../rich-text/CustomEmailBodyEditor';
 import {
@@ -20,7 +20,6 @@ interface EmailTemplate {
 
 interface CampaignStep {
   id: string;
-  stepNumber: number;
   day: number;
   name?: string;
   description?: string;
@@ -34,12 +33,12 @@ interface CampaignStep {
   };
   taskAction?: {
     id: string;
-    taskType: 'linkedin' | 'whatsapp' | 'call' | 'other';
-    otherTitle?: string;
+    taskType: 'linkedin' | 'whatsapp' | 'call' | 'custom';
+    customTitle?: string;
     linkedinDescription?: string;
     whatsappDescription?: string;
     callDescription?: string;
-    otherDescription?: string;
+    customDescription?: string;
     enableEmailNotification: boolean;
   };
 }
@@ -53,6 +52,7 @@ interface StepEditorProps {
   availableTemplates: EmailTemplate[];
   isFirst?: boolean;
   isLast?: boolean;
+  allSteps?: CampaignStep[];
 }
 
 const StepEditor: React.FC<StepEditorProps> = ({
@@ -64,10 +64,42 @@ const StepEditor: React.FC<StepEditorProps> = ({
   availableTemplates,
   isFirst,
   isLast,
+  allSteps = [],
 }) => {
   const [editedStep, setEditedStep] = useState<CampaignStep>({ ...step });
+  const [dayError, setDayError] = useState<string>('');
 
+  // Update edited step when step prop changes
+  useEffect(() => {
+    setEditedStep({ ...step });
+  }, [step]);
+
+  
   const handleSave = () => {
+    // Validate day number
+    const dayValidationErrors = [];
+
+    // Check if day is valid based on whether it's Day 1
+    if (editedStep.day === 1) {
+      // Day 1 is always valid
+    } else {
+      // All other days must be >= 2
+      if (editedStep.day < 2) {
+        dayValidationErrors.push('Day must be 2 or higher for steps after the first day');
+      }
+    }
+
+    // Check for duplicate days (excluding current step)
+    const duplicateStep = allSteps.find(s => s.id !== editedStep.id && s.day === editedStep.day);
+    if (duplicateStep) {
+      dayValidationErrors.push(`Day ${editedStep.day} is already used by another step`);
+    }
+
+    if (dayValidationErrors.length > 0) {
+      setDayError(dayValidationErrors[0]);
+      return;
+    }
+
     // Validate actions before saving
     const validationErrors = [];
 
@@ -82,9 +114,20 @@ const StepEditor: React.FC<StepEditorProps> = ({
     if (editedStep.taskAction) {
       const taskAction = editedStep.taskAction;
 
-      // Check if there's a task description
-      if (!taskAction.otherDescription) {
+      // Check if there's a task description based on task type
+      const hasDescription = 
+        (taskAction.taskType === 'linkedin' && taskAction.linkedinDescription) ||
+        (taskAction.taskType === 'whatsapp' && taskAction.whatsappDescription) ||
+        (taskAction.taskType === 'call' && taskAction.callDescription) ||
+        (taskAction.taskType === 'custom' && taskAction.customDescription);
+
+      if (!hasDescription) {
         validationErrors.push('Task must have a description');
+      }
+
+      // For custom tasks, also validate title
+      if (taskAction.taskType === 'custom' && !taskAction.customTitle) {
+        validationErrors.push('Custom task must have a title');
       }
     }
 
@@ -95,21 +138,39 @@ const StepEditor: React.FC<StepEditorProps> = ({
 
     // Log for debugging purposes
     console.log('Saving step with actions:', {
-      stepNumber: editedStep.stepNumber,
       day: editedStep.day,
       hasEmailAction: !!editedStep.emailAction,
       hasTaskAction: !!editedStep.taskAction,
       emailTemplate: editedStep.emailAction?.templateId ? 'Template' : 'Custom',
-      taskType: 'other',
+      taskType: 'custom',
       taskTitle: 'Task'
     });
 
     onSave(editedStep);
-    onClose();
   };
 
   const updateStep = (updates: Partial<CampaignStep>) => {
     setEditedStep(prev => ({ ...prev, ...updates }));
+    // Clear day error when day is updated
+    if ('day' in updates) {
+      setDayError('');
+    }
+  };
+
+  const handleDayChange = (newDay: number) => {
+    // Clear any previous error
+    setDayError('');
+
+    // Prevent changing Day 1 to other values and other days to 1
+    const originalDay = step.day;
+    if (originalDay === 1) {
+      // Day 1 should always remain 1
+      updateStep({ day: 1 });
+    } else {
+      // Other steps should never be 1
+      const safeDay = newDay === 1 ? (originalDay || 2) : newDay;
+      updateStep({ day: safeDay });
+    }
   };
 
   const updateEmailAction = (updates: Partial<CampaignStep['emailAction']>) => {
@@ -134,7 +195,7 @@ const StepEditor: React.FC<StepEditorProps> = ({
         ? { ...prev.taskAction, ...updates }
         : {
             id: `task_${Date.now()}`,
-            taskType: 'other',
+            taskType: 'custom',
             enableEmailNotification: true,
             ...updates
           }
@@ -157,7 +218,7 @@ const StepEditor: React.FC<StepEditorProps> = ({
   const addTaskAction = () => {
     updateTaskAction({
       id: `task_${Date.now()}`,
-      taskType: 'other',
+      taskType: 'custom',
       enableEmailNotification: true,
     });
   };
@@ -177,11 +238,11 @@ const StepEditor: React.FC<StepEditorProps> = ({
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 bg-blue-600 text-white rounded-full flex items-center justify-center font-bold">
-                  {editedStep.stepNumber}
+                  {editedStep.day}
                 </div>
                 <div>
                   <h2 className="text-xl font-bold text-gray-900">
-                    Step {editedStep.stepNumber}
+                    Day {editedStep.day}
                   </h2>
                   <p className="text-sm text-gray-600">Configure actions and timing</p>
                 </div>
@@ -211,14 +272,27 @@ const StepEditor: React.FC<StepEditorProps> = ({
                 </label>
                 <input
                   type="number"
-                  min="1"
+                  min={editedStep.day === 1 ? "1" : "2"}
                   value={editedStep.day || 1}
-                  onChange={(e) => updateStep({ day: parseInt(e.target.value) || 1 })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
-                  placeholder="Enter day number..."
+                  onChange={(e) => handleDayChange(parseInt(e.target.value) || (editedStep.day === 1 ? 1 : 2))}
+                  disabled={editedStep.day === 1}
+                  className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm ${
+                    editedStep.day === 1
+                      ? 'bg-gray-100 border-gray-200 text-gray-500 cursor-not-allowed'
+                      : dayError
+                      ? 'border-red-300 focus:border-red-500'
+                      : 'border-gray-300'
+                  }`}
+                  placeholder={editedStep.day === 1 ? "Day 1 is fixed" : "Enter day number (2 or higher)"}
                 />
+                {dayError && (
+                  <p className="text-xs text-red-600 mt-1">{dayError}</p>
+                )}
                 <p className="text-xs text-gray-500 mt-2">
-                  This step occurs on day {editedStep.day || 1} relative to when the sequence starts
+                  {editedStep.day === 1
+                    ? 'Day 1 is fixed and cannot be edited'
+                    : `This step occurs on day ${editedStep.day || 2} relative to when the sequence starts. You can set any day number 2 or higher.`
+                  }
                 </p>
               </div>
             </div>
@@ -318,7 +392,17 @@ const StepEditor: React.FC<StepEditorProps> = ({
                     <div className="bg-gray-50 rounded p-3 text-xs">
                       <p className="font-medium text-gray-700 mb-1">Template Preview</p>
                       <p className="text-gray-600 mb-1"><strong>Subject:</strong> {editedStep.emailAction.template.subject}</p>
-                      <p className="text-gray-600"><strong>Body:</strong> {editedStep.emailAction.template.body.substring(0, 100)}...</p>
+                      <div className="text-gray-600">
+                        <strong>Body:</strong>
+                        <div
+                          className="mt-1 p-2 bg-white border border-gray-200 rounded text-xs max-h-32 overflow-y-auto"
+                          dangerouslySetInnerHTML={{
+                            __html: editedStep.emailAction.template.body.length > 100
+                              ? editedStep.emailAction.template.body.substring(0, 100) + '...'
+                              : editedStep.emailAction.template.body
+                          }}
+                        />
+                      </div>
                     </div>
                   )}
 
@@ -376,18 +460,65 @@ const StepEditor: React.FC<StepEditorProps> = ({
               {editedStep.taskAction && (
                 <div className="p-4 space-y-4">
 
-                  <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">
-                      Task Description *
-                    </label>
-                    <textarea
-                      value={editedStep.taskAction.otherDescription || ''}
-                      onChange={(e) => updateTaskAction({ otherDescription: e.target.value })}
-                      placeholder="Describe the task to be performed..."
-                      rows={3}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm resize-none"
-                    />
-                  </div>
+                   <div>
+                     <label className="block text-xs font-medium text-gray-600 mb-1">
+                       Task Type *
+                     </label>
+                     <select
+                       value={editedStep.taskAction?.taskType || 'custom'}
+                       onChange={(e) => updateTaskAction({ taskType: e.target.value as 'linkedin' | 'whatsapp' | 'call' | 'custom' })}
+                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                     >
+                       <option value="linkedin">LinkedIn</option>
+                       <option value="whatsapp">WhatsApp</option>
+                       <option value="call">Call</option>
+                       <option value="custom">Custom</option>
+                     </select>
+                   </div>
+
+                   {editedStep.taskAction?.taskType === 'custom' && (
+                     <div>
+                       <label className="block text-xs font-medium text-gray-600 mb-1">
+                         Custom Task Title *
+                       </label>
+                       <input
+                         type="text"
+                         value={editedStep.taskAction.customTitle || ''}
+                         onChange={(e) => updateTaskAction({ customTitle: e.target.value })}
+                         placeholder="Enter custom task title..."
+                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                       />
+                     </div>
+                   )}
+
+                   <div>
+                     <label className="block text-xs font-medium text-gray-600 mb-1">
+                       {editedStep.taskAction?.taskType === 'custom' ? 'Task Description *' : `${editedStep.taskAction?.taskType?.charAt(0).toUpperCase() + editedStep.taskAction?.taskType?.slice(1)} Description *`}
+                     </label>
+                     <textarea
+                       value={
+                         editedStep.taskAction?.taskType === 'linkedin' ? (editedStep.taskAction.linkedinDescription || '') :
+                         editedStep.taskAction?.taskType === 'whatsapp' ? (editedStep.taskAction.whatsappDescription || '') :
+                         editedStep.taskAction?.taskType === 'call' ? (editedStep.taskAction.callDescription || '') :
+                         (editedStep.taskAction?.customDescription || '')
+                       }
+                       onChange={(e) => {
+                         const description = e.target.value;
+                         if (editedStep.taskAction?.taskType === 'linkedin') {
+                           updateTaskAction({ linkedinDescription: description });
+                         } else if (editedStep.taskAction?.taskType === 'whatsapp') {
+                           updateTaskAction({ whatsappDescription: description });
+                         } else if (editedStep.taskAction?.taskType === 'call') {
+                           updateTaskAction({ callDescription: description });
+                         } else {
+                           updateTaskAction({ customDescription: description });
+                         }
+                       }}
+                       placeholder={`Describe the ${editedStep.taskAction?.taskType === 'custom' ? 'task' : editedStep.taskAction?.taskType} to be performed...`}
+                       rows={3}
+                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm resize-none"
+                     />
+                   </div>
 
                   <div className="bg-green-50 rounded p-3">
                     <label className="flex items-center gap-2 cursor-pointer">
@@ -414,7 +545,7 @@ const StepEditor: React.FC<StepEditorProps> = ({
             <div className="flex justify-between items-center">
               <div className="text-sm text-gray-600">
                 <div>
-                  Step {editedStep.stepNumber}
+                  Day {editedStep.day}
                   {isFirst && <span className="ml-2 text-blue-600">(First step)</span>}
                   {isLast && <span className="ml-2 text-blue-600">(Last step)</span>}
                 </div>
@@ -425,12 +556,18 @@ const StepEditor: React.FC<StepEditorProps> = ({
                       Email: {editedStep.emailAction.templateId ? 'Template' : 'Custom'}
                     </span>
                   )}
-                  {editedStep.taskAction && (
-                    <span className="inline-flex items-center gap-1">
-                      <FiCheckSquare className="w-3 h-3" />
-                      Task: {editedStep.taskAction.otherTitle || 'Task'}
-                    </span>
-                  )}
+                   {editedStep.taskAction && (
+                     <span className="inline-flex items-center gap-1">
+                       <FiCheckSquare className="w-3 h-3" />
+                       Task: {
+                         editedStep.taskAction.taskType === 'custom' ? (editedStep.taskAction.customTitle || 'Custom Task') :
+                         editedStep.taskAction.taskType === 'linkedin' ? 'LinkedIn' :
+                         editedStep.taskAction.taskType === 'whatsapp' ? 'WhatsApp' :
+                         editedStep.taskAction.taskType === 'call' ? 'Call' :
+                         'Task'
+                       }
+                     </span>
+                   )}
                   {!editedStep.emailAction && !editedStep.taskAction && (
                     <span className="text-gray-400">No actions configured</span>
                   )}

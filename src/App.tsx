@@ -122,11 +122,11 @@ function AppContent() {
               <Route path="tasks" element={<TasksPage />} />
               <Route path="campaigns/:id" element={<SequenceDetailsPage />} />
               <Route
-                path="campaigns/:id/personalize/:stepNumber"
+                path="campaigns/:id/personalize/:day"
                 element={<CampaignEmailPersonalizationPage />}
               />
               <Route
-                path="campaigns/:id/personalize/:stepNumber/prospect/:prospectId"
+                path="campaigns/:id/personalize/:day/prospect/:prospectId"
                 element={<ProspectPersonalizer />}
               />
               <Route
@@ -138,7 +138,7 @@ function AppContent() {
                 element={<ProspectStepsPersonalizationPage />}
               />
               <Route
-                path="campaigns/:id/steps/:stepNumber/personalize"
+                path="campaigns/:id/steps/:day/personalize"
                 element={<StepPersonalizationPage />}
               />
               <Route

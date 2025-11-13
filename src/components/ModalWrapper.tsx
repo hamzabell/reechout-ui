@@ -89,8 +89,8 @@ const ModalWrapper: React.FC<ModalWrapperProps> = ({
   maxWidth = "max-w-lg",
   maxHeight = "max-h-[90vh]"
 }) => {
-  const modalIdRef = useRef<string>('');
   const isMountedRef = useRef(false);
+  const isClosingRef = useRef(false);
 
   useEffect(() => {
     isMountedRef.current = true;
@@ -101,41 +101,37 @@ const ModalWrapper: React.FC<ModalWrapperProps> = ({
 
   useEffect(() => {
     if (isOpen) {
-      // Generate unique ID for this modal instance
-      modalIdRef.current = `modal-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
       modalCounter++;
       manageBodyScroll(true);
     } else {
       // Clean up when modal closes
-      if (modalIdRef.current) {
-        modalCounter = Math.max(0, modalCounter - 1);
-        
-        console.log('🚀 Starting modal cleanup');
-        
-        // Restore scroll immediately
-        manageBodyScroll(false);
-        
-        // Multiple restoration attempts
-        setTimeout(() => {
-          if (isMountedRef.current) {
-            manageBodyScroll(false);
-            console.log('🔄 Cleanup attempt 1');
-          }
-        }, 50);
-        
-        setTimeout(() => {
-          if (isMountedRef.current) {
-            manageBodyScroll(false);
-            cleanupModalRoot();
-            console.log('🔄 Final cleanup completed');
-          }
-        }, 200);
-      }
+      modalCounter = Math.max(0, modalCounter - 1);
+      
+      console.log('🚀 Starting modal cleanup');
+      
+      // Restore scroll immediately
+      manageBodyScroll(false);
+      
+      // Multiple restoration attempts
+      setTimeout(() => {
+        if (isMountedRef.current) {
+          manageBodyScroll(false);
+          console.log('🔄 Cleanup attempt 1');
+        }
+      }, 50);
+      
+      setTimeout(() => {
+        if (isMountedRef.current) {
+          manageBodyScroll(false);
+          cleanupModalRoot();
+          console.log('🔄 Final cleanup completed');
+        }
+      }, 200);
     }
 
     // Cleanup on unmount
     return () => {
-      if (modalIdRef.current && isMountedRef.current) {
+      if (isMountedRef.current) {
         modalCounter = Math.max(0, modalCounter - 1);
         manageBodyScroll(false);
         cleanupModalRoot();
@@ -164,65 +160,72 @@ const ModalWrapper: React.FC<ModalWrapperProps> = ({
         }, 50);
       }}
     >
-      {/* Backdrop */}
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        className="fixed inset-0 bg-black/70 backdrop-blur-md"
-        style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          zIndex: 999999,
-          pointerEvents: 'auto' // Enable pointer events for the backdrop
-        }}
-        onClick={onClose}
-      />
+      {isOpen && (
+        <>
+          {/* Backdrop */}
+          <motion.div
+            key="modal-backdrop"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/70 backdrop-blur-md"
+            style={{
+              position: 'fixed',
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              zIndex: 999999,
+              pointerEvents: 'auto' // Enable pointer events for the backdrop
+            }}
+            onClick={onClose}
+          />
 
-      {/* Modal Content */}
-      <div
-        style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          zIndex: 1000000, // Higher z-index than backdrop
-          pointerEvents: 'none', // Disable pointer events for the container
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          padding: '12px'
-        }}
-      >
-        <motion.div
-          initial={{ scale: 0.9, opacity: 0, y: 30 }}
-          animate={{ scale: 1, opacity: 1, y: 0 }}
-          exit={{ scale: 0.9, opacity: 0, y: 30 }}
-          transition={{
-            type: "spring",
-            stiffness: 400,
-            damping: 25,
-            mass: 0.8
-          }}
-          className={`bg-white rounded-3xl shadow-2xl border border-gray-100 w-full ${maxWidth} ${maxHeight} overflow-hidden hide-scrollbar ${className}`}
-          style={{
-            maxHeight: '85vh',
-            overflowY: 'auto',
-            pointerEvents: 'auto', // Enable pointer events only for the modal content
-            boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25), 0 0 0 1px rgba(0, 0, 0, 0.05)',
-            // Hide scrollbar but keep functionality
-            scrollbarWidth: 'none', /* Firefox */
-            msOverflowStyle: 'none'  /* Internet Explorer 10+ */
-          }}
-          onClick={(e) => e.stopPropagation()}
-        >
-          {children}
-        </motion.div>
-      </div>
+          {/* Modal Content */}
+          <div
+            key="modal-wrapper"
+            style={{
+              position: 'fixed',
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              zIndex: 1000000, // Higher z-index than backdrop
+              pointerEvents: 'none', // Disable pointer events for the container
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: '12px'
+            }}
+          >
+            <motion.div
+              key="modal-content"
+              initial={{ scale: 0.9, opacity: 0, y: 30 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.9, opacity: 0, y: 30 }}
+              transition={{
+                type: "spring",
+                stiffness: 400,
+                damping: 25,
+                mass: 0.8
+              }}
+              className={`bg-white rounded-3xl shadow-2xl border border-gray-100 w-full ${maxWidth} ${maxHeight} overflow-hidden hide-scrollbar ${className}`}
+              style={{
+                maxHeight: '85vh',
+                overflowY: 'auto',
+                pointerEvents: 'auto', // Enable pointer events only for the modal content
+                boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25), 0 0 0 1px rgba(0, 0, 0, 0.05)',
+                // Hide scrollbar but keep functionality
+                scrollbarWidth: 'none', /* Firefox */
+                msOverflowStyle: 'none'  /* Internet Explorer 10+ */
+              }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              {children}
+            </motion.div>
+          </div>
+        </>
+      )}
     </AnimatePresence>
   );
 

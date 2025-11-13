@@ -42,7 +42,7 @@ app.get('/api/tasks', async (req, res) => {
       status: task.status,
       dueDate: task.dueDate,
       campaignName: 'Sample Campaign',
-      stepNumber: 1,
+      day: 1,
       stepName: 'Sample Step',
       isOverdue: task.dueDate && new Date(task.dueDate) < new Date() && task.status !== 'COMPLETED',
       daysUntilDue: task.dueDate ? Math.ceil((new Date(task.dueDate) - new Date()) / (1000 * 60 * 60 * 24)) : undefined,

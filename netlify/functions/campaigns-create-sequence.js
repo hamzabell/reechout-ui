@@ -46,6 +46,16 @@ exports.handler = async (event, context) => {
     // Merge with any provided sequence data
     const finalSequenceData = { ...defaultSequenceData, ...sequenceData };
 
+    // First verify the user exists
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, name: true, email: true }
+    });
+
+    if (!user) {
+      return createErrorResponse('User not found', 404);
+    }
+
     // Create the sequence in the database
     const sequence = await prisma.sequence.create({
       data: {
@@ -53,14 +63,7 @@ exports.handler = async (event, context) => {
         name: finalSequenceData.name,
         description: finalSequenceData.description,
         status: finalSequenceData.status,
-        createdBy: userId,
-        // Include empty relations
-        campaignProspects: {
-          create: [] // Empty array for now
-        },
-        steps: {
-          create: [] // Empty array for now
-        }
+        createdBy: userId
       },
       include: {
         creator: {

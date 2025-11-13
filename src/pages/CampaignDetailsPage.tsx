@@ -8,6 +8,7 @@ import {
   FiList,
   FiInfo,
   FiSave,
+  FiMail,
 } from 'react-icons/fi';
 
 import StepEditor from '../components/campaigns/StepEditor';
@@ -19,14 +20,14 @@ import AddProspectsToCampaignModal from '../components/AddProspectsToCampaignMod
 import ProspectDetailsModal from '../components/ProspectDetailsModal';
 import { useConfirm } from '../hooks/useConfirm';
 import { useToast } from '../hooks/useToast';
-import { useSequenceDetails, useUpdateCampaign, useCreateSequence, useAddProspectsToCampaign, useRemoveProspectFromCampaign, usePauseProspect, useResumeProspect } from '../hooks/useCampaigns';
+import { useSequenceDetails, useUpdateCampaign, useCreateSequence, useAddProspectsToCampaign, useRemoveProspectFromCampaign, usePauseProspect, useResumeProspect, useCreateSequenceStep, useUpdateSequenceStep, useDeleteSequenceStep } from '../hooks/useCampaigns';
 import { useAuth } from '../hooks/useAuth';
+import { useTemplates } from '../hooks/useTemplates';
 
 type ViewMode = 'overview' | 'steps' | 'prospects' | 'settings';
 
 interface CampaignStep {
   id: string;
-  stepNumber: number;
   day: number;
   name?: string;
   description?: string;
@@ -45,11 +46,12 @@ interface CampaignStep {
   };
   taskAction?: {
     id: string;
-    taskType: 'linkedin' | 'whatsapp' | 'call' | 'other';
-    otherTitle?: string;
+    taskType: 'linkedin' | 'whatsapp' | 'call' | 'custom';
+    customTitle?: string;
     linkedinDescription?: string;
     whatsappDescription?: string;
     callDescription?: string;
+    customDescription?: string;
     enableEmailNotification: boolean;
   };
 }
@@ -77,7 +79,7 @@ interface CampaignProspect {
     stepEmailAction: {
       step: {
         step: {
-          stepNumber: number;
+          day: number;
           name?: string;
         };
       };
@@ -103,10 +105,13 @@ const SequenceDetailsPage: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
 
+  // Fetch email templates
+  const { templates, isLoading: templatesLoading, error: templatesError } = useTemplates();
+
   // View modes
   const [viewMode, setViewMode] = useState<ViewMode>('overview');
   const [showStepModal, setShowStepModal] = useState(false);
-  const [editingStep, setEditingStep] = useState<CampaignStep | null>(null);
+  const [editingStep, setEditingStep] = useState<CampaignStep | null>(null); // Force recompile
   const [showSchedulerModal, setShowSchedulerModal] = useState(false);
   const [showAddProspectsModal, setShowAddProspectsModal] = useState(false);
   const [selectedProspect, setSelectedProspect] = useState<CampaignProspect | null>(null);
@@ -125,6 +130,11 @@ const SequenceDetailsPage: React.FC = () => {
   const pauseProspect = usePauseProspect(id || '');
   const resumeProspect = useResumeProspect(id || '');
 
+  // Step management hooks
+  const createSequenceStep = useCreateSequenceStep();
+  const updateSequenceStep = useUpdateSequenceStep();
+  const deleteSequenceStep = useDeleteSequenceStep();
+
   // Fetch sequence details from API
   const { campaign: apiCampaign, isLoading: apiLoading, error: apiError } = useSequenceDetails(id || null);
 
@@ -134,24 +144,23 @@ const SequenceDetailsPage: React.FC = () => {
   const [hasChanges, setHasChanges] = useState(false);
   const [formErrors, setFormErrors] = useState<{name?: string}>({});
 
-
-
   // Use API data directly, or local data if we have unsaved changes
   const campaign = localCampaign || apiCampaign;
-  const isLoading = apiLoading;
+
+    const isLoading = apiLoading;
   const error = apiError instanceof Error ? apiError.message : apiError ? String(apiError) : null;
-  
+
   // Check if this is a new campaign (default values)
   const isNewCampaign = apiCampaign?.name === 'New Campaign' && !apiCampaign.description && apiCampaign.steps.length === 0;
 
   // Validate form
   const validateForm = (): boolean => {
     const errors: {name?: string} = {};
-    
+
     if (!campaign?.name || campaign.name.trim() === '') {
       errors.name = 'Campaign name is required';
     }
-    
+
     setFormErrors(errors);
     return Object.keys(errors).length === 0;
   };
@@ -159,7 +168,7 @@ const SequenceDetailsPage: React.FC = () => {
   // Handle adding prospects to campaign
   const handleAddProspects = async (prospectIds: string[]) => {
     if (!id || !user?.id) return;
-    
+
     try {
       await addProspectsToCampaign.trigger({
         campaignId: id,
@@ -176,36 +185,34 @@ const SequenceDetailsPage: React.FC = () => {
   // Handle removing prospect from campaign
   const handleRemoveProspect = async (prospectId: string, prospectName: string) => {
     if (!id || !user?.id) return;
-    
+
     const confirmed = await confirmDanger({
       message: `Are you sure you want to remove ${prospectName} from this campaign?`,
-      onConfirm: () => {}
-    });
-    
-    if (confirmed) {
-      // Add to removing set to show loading state for this specific prospect
-      setRemovingProspectIds(prev => new Set(prev).add(prospectId));
-      
-      try {
-        await removeProspectFromCampaign.trigger({
-          campaignId: id,
-          prospectId,
-          userId: user.id || user.neonId
-        });
-        showToast('Prospect removed successfully', 'success');
-      } catch (error) {
-        console.error('Error removing prospect:', error);
-        showToast('Failed to remove prospect', 'error');
-        // Error will be automatically rolled back by the optimistic mutation
-      } finally {
-        // Remove from removing set after operation completes
-        setRemovingProspectIds(prev => {
-          const newSet = new Set(prev);
-          newSet.delete(prospectId);
-          return newSet;
-        });
+      onConfirm: async () => {
+        // Add to removing set to show loading state for this specific prospect
+        setRemovingProspectIds(prev => new Set(prev).add(prospectId));
+
+        try {
+          await removeProspectFromCampaign.trigger({
+            campaignId: id,
+            prospectId,
+            userId: user.id || user.neonId
+          });
+          showToast('Prospect removed successfully', 'success');
+        } catch (error) {
+          console.error('Error removing prospect:', error);
+          showToast('Failed to remove prospect', 'error');
+          // Error will be automatically rolled back by the optimistic mutation
+        } finally {
+          // Remove from removing set after operation completes
+          setRemovingProspectIds(prev => {
+            const newSet = new Set(prev);
+            newSet.delete(prospectId);
+            return newSet;
+          });
+        }
       }
-    }
+    });
   };
 
   // Handle viewing prospect details
@@ -214,10 +221,11 @@ const SequenceDetailsPage: React.FC = () => {
     setShowProspectDetailsModal(true);
   };
 
+  
   // Handle pausing prospect
   const handlePauseProspect = async (prospectId: string) => {
     if (!id || !user?.id) return;
-    
+
     try {
       await pauseProspect.trigger({
         campaignId: id,
@@ -236,7 +244,7 @@ const SequenceDetailsPage: React.FC = () => {
   // Handle resuming prospect
   const handleResumeProspect = async (prospectId: string) => {
     if (!id || !user?.id) return;
-    
+
     try {
       await resumeProspect.trigger({
         campaignId: id,
@@ -257,22 +265,18 @@ const SequenceDetailsPage: React.FC = () => {
     .filter((p: CampaignProspect) => p?.prospect?.id)
     .map((p: CampaignProspect) => p.prospect.id) || [];
 
-
-
-
-
   // Save campaign function
   const saveCampaign = async () => {
     if (!campaign) return;
-    
+
     // Validate form before saving
     if (!validateForm()) {
       showToast('Please fix the errors before saving', 'error');
       return;
     }
-    
+
     setIsSaving(true);
-    
+
     try {
       if (isNewCampaign) {
         // Create new sequence
@@ -292,10 +296,10 @@ const SequenceDetailsPage: React.FC = () => {
           userId: user?.id || user?.neonId,
           sequenceId: campaign.id
         };
-        
+
         // Prepare the optimistic update data (only campaign fields)
         const optimisticUpdateData: Partial<Campaign> = {};
-        
+
         // Only include fields that actually changed
         if (localCampaign.name !== apiCampaign?.name) {
           updateData.name = localCampaign.name;
@@ -305,11 +309,11 @@ const SequenceDetailsPage: React.FC = () => {
           updateData.description = localCampaign.description;
           optimisticUpdateData.description = localCampaign.description;
         }
-        
+
         // Use the optimistic mutation hook for instant updates
         await updateCampaign.trigger(updateData);
         showToast('Campaign updated successfully', 'success');
-        
+
         // Clear local state immediately after successful trigger
         // The optimistic update will handle the UI update
         setLocalCampaign(null);
@@ -333,13 +337,6 @@ const SequenceDetailsPage: React.FC = () => {
       setHasChanges(false);
     }
   }, [localCampaign, apiCampaign]);
-
-  // Mock email templates for frontend demo
-  const mockEmailTemplates = [
-    { id: '1', name: 'Initial Outreach', subject: 'Introduction and Value Proposition', body: 'Hi {{name}}, welcome to our platform!' },
-    { id: '2', name: 'Follow-up', subject: 'Following up on our conversation', body: 'Hi {{name}}, let me show you some features.' },
-    { id: '3', name: 'Final Follow-up', subject: 'Final follow-up', body: 'Hi {{name}}, just checking in one last time.' },
-  ];
 
   if (isLoading) {
     return (
@@ -398,7 +395,7 @@ const SequenceDetailsPage: React.FC = () => {
             <FiArrowLeft className="w-5 h-5 mr-2" />
             Back to Campaigns
           </button>
-          
+
           <div className="bg-white rounded-lg shadow-sm p-6">
             <div className="flex items-start justify-between">
               <div>
@@ -410,8 +407,8 @@ const SequenceDetailsPage: React.FC = () => {
                   Created {new Date(campaign.createdAt).toLocaleDateString()}
                 </div>
               </div>
-              
-              <CampaignControl 
+
+              <CampaignControl
                 campaign={campaign}
                 onScheduleClick={() => setShowSchedulerModal(true)}
               />
@@ -445,13 +442,13 @@ const SequenceDetailsPage: React.FC = () => {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div className="bg-white rounded-lg shadow-sm p-6">
               <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-medium text-gray-900">Steps</h3>
+                <h3 className="text-lg font-medium text-gray-900">Days</h3>
                 <FiList className="w-5 h-5 text-gray-400" />
               </div>
               <p className="text-2xl font-bold text-gray-900">{campaign.steps.length}</p>
               <p className="text-sm text-gray-500">Campaign steps</p>
             </div>
-            
+
             <div className="bg-white rounded-lg shadow-sm p-6">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-lg font-medium text-gray-900">Prospects</h3>
@@ -460,7 +457,7 @@ const SequenceDetailsPage: React.FC = () => {
               <p className="text-2xl font-bold text-gray-900">{campaign.prospects.length}</p>
               <p className="text-sm text-gray-500">Active prospects</p>
             </div>
-            
+
             <div className="bg-white rounded-lg shadow-sm p-6">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-lg font-medium text-gray-900">Status</h3>
@@ -487,7 +484,7 @@ const SequenceDetailsPage: React.FC = () => {
                 Add Step
               </button>
             </div>
-            
+
             {campaign.steps.length === 0 ? (
               <div className="bg-white rounded-lg shadow-sm p-12 text-center">
                 <FiList className="w-12 h-12 text-gray-400 mx-auto mb-4" />
@@ -506,10 +503,14 @@ const SequenceDetailsPage: React.FC = () => {
               </div>
             ) : (
               <div className="space-y-4">
-                {campaign.steps.map((step: CampaignStep) => (
+                {campaign.steps
+                  .slice()
+                  .sort((a: CampaignStep, b: CampaignStep) => a.day - b.day)
+                  .map((step: CampaignStep, index: number) => (
                   <StepCard
                     key={step.id}
                     step={step}
+                    index={index}
                     onEdit={() => {
                       setEditingStep(step);
                       setShowStepModal(true);
@@ -517,15 +518,22 @@ const SequenceDetailsPage: React.FC = () => {
                     onDelete={async () => {
                       const confirmed = await confirmDanger({
                         message: 'Are you sure you want to delete this step?',
-                        onConfirm: () => {}
+                        onConfirm: async () => {
+                          try {
+                            await deleteSequenceStep.trigger({
+                              sequenceId: id,
+                              stepId: step.id,
+                              userId: user?.id || user?.neonId || ''
+                            });
+                            showToast('Step deleted successfully', 'success');
+                          } catch (error) {
+                            console.error('Error deleting step:', error);
+                            // Display more specific error message if available
+                            const errorMessage = (error as any)?.message || (error as any)?.error || 'Failed to delete step';
+                            showToast(errorMessage, 'error');
+                          }
+                        }
                       });
-                      if (confirmed) {
-                        setLocalCampaign(prev => prev ? {
-                          ...prev,
-                          steps: prev.steps.filter(s => s.id !== step.id)
-                        } : null);
-                        showToast('Step deleted successfully', 'success');
-                      }
                     }}
                   />
                 ))}
@@ -540,7 +548,7 @@ const SequenceDetailsPage: React.FC = () => {
               <h2 className="text-xl font-semibold text-gray-900">
                 Campaign Prospects ({campaign.prospects?.length || 0})
               </h2>
-              <button 
+              <button
                 onClick={() => setShowAddProspectsModal(true)}
                 className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
               >
@@ -548,13 +556,13 @@ const SequenceDetailsPage: React.FC = () => {
                 Add Prospects
               </button>
             </div>
-            
+
             {!campaign.prospects || campaign.prospects.length === 0 ? (
               <div className="bg-white rounded-lg shadow-sm p-12 text-center">
                 <FiUser className="w-12 h-12 text-gray-400 mx-auto mb-4" />
                 <h3 className="text-lg font-medium text-gray-900 mb-2">No prospects yet</h3>
                 <p className="text-gray-500 mb-4">Add prospects to your campaign to start outreach</p>
-                <button 
+                <button
                   onClick={() => setShowAddProspectsModal(true)}
                   className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 mx-auto"
                 >
@@ -623,15 +631,15 @@ const SequenceDetailsPage: React.FC = () => {
                             {campaignProspect.personalizedEmails?.length || 0}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                            <button 
+                            <button
                               onClick={() => handleViewProspect(campaignProspect)}
                               className="text-blue-600 hover:text-blue-900 mr-3"
                             >
                               View
                             </button>
-                            <button 
+                            <button
                               onClick={() => handleRemoveProspect(
-                                campaignProspect.prospect?.id || '', 
+                                campaignProspect.prospect?.id || '',
                                 campaignProspect.prospect?.name || 'Unknown'
                               )}
                               className="text-red-600 hover:text-red-900"
@@ -659,7 +667,7 @@ const SequenceDetailsPage: React.FC = () => {
                 disabled={isSaving || (!hasChanges && !isNewCampaign)}
                 className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
                   isSaving || (!hasChanges && !isNewCampaign)
-                    ? 'bg-gray-400 text-gray-200 cursor-not-allowed' 
+                    ? 'bg-gray-400 text-gray-200 cursor-not-allowed'
                     : hasChanges || isNewCampaign
                     ? 'bg-blue-600 text-white hover:bg-blue-700'
                     : 'bg-gray-300 text-gray-600'
@@ -678,7 +686,7 @@ const SequenceDetailsPage: React.FC = () => {
                 )}
               </button>
             </div>
-            
+
             <div className="bg-white rounded-lg shadow-sm p-6">
               <h3 className="text-lg font-medium text-gray-900 mb-4">Campaign Details</h3>
               <div className="space-y-4">
@@ -759,50 +767,119 @@ const SequenceDetailsPage: React.FC = () => {
 
       {/* Step Editor Modal */}
       <ModalWrapper isOpen={showStepModal} onClose={() => setShowStepModal(false)}>
-        {editingStep ? (
+        {templatesLoading ? (
+          <div className="p-8 text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+            <p className="text-gray-600">Loading email templates...</p>
+          </div>
+        ) : templatesError ? (
+          <div className="p-8 text-center">
+            <FiAlertCircle className="h-12 w-12 text-red-500 mx-auto mb-4" />
+            <p className="text-red-600 mb-2">Failed to load email templates</p>
+            <p className="text-gray-500 text-sm mb-4">Please try refreshing the page</p>
+            <button
+              onClick={() => setShowStepModal(false)}
+              className="px-4 py-2 bg-gray-200 text-gray-800 rounded hover:bg-gray-300 transition-colors"
+            >
+              Close
+            </button>
+          </div>
+        ) : templates.length === 0 ? (
+          <div className="p-8 text-center">
+            <FiMail className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+            <p className="text-gray-600 mb-2">No email templates found</p>
+            <p className="text-gray-500 text-sm mb-6">Create email templates first to use them in your campaign steps</p>
+            <div className="flex gap-3 justify-center">
+              <button
+                onClick={() => navigate('/templates')}
+                className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
+              >
+                Create Templates
+              </button>
+              <button
+                onClick={() => setShowStepModal(false)}
+                className="px-4 py-2 bg-gray-200 text-gray-800 rounded hover:bg-gray-300 transition-colors"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        ) : editingStep ? (
           <StepEditor
             step={editingStep}
             isOpen={showStepModal}
             onClose={() => setShowStepModal(false)}
-            availableTemplates={mockEmailTemplates}
-            onSave={(stepData) => {
-              // Update existing step
-              setLocalCampaign(prev => prev ? {
-                ...prev,
-                steps: prev.steps.map(s => s.id === editingStep.id ? { ...s, ...stepData } : s)
-              } : null);
-              showToast('Step updated successfully', 'success');
+            availableTemplates={templates}
+            allSteps={campaign.steps}
+            onSave={async (stepData) => {
+              // Close modal immediately for optimistic UI
               setShowStepModal(false);
-              setEditingStep(null);
+
+              try {
+                // Update existing step via API with optimistic updates
+                await updateSequenceStep.trigger({
+                  sequenceId: id,
+                  stepId: editingStep.id,
+                  userId: user?.id || user?.neonId || '',
+                  stepData
+                });
+                showToast('Step updated successfully', 'success');
+                setEditingStep(null); // Clear editing step only on success
+              } catch (error) {
+                console.error('Error updating step:', error);
+                // Don't automatically reopen modal on error - user can manually reopen if needed
+                // This prevents the modal from flickering/reopening after errors
+                // Display specific backend error message if available
+                const errorMessage = (error as any)?.message || (error as any)?.error?.message || 'Failed to update step';
+                showToast(errorMessage, 'error');
+                
+                // Keep the editing step data so user can retry if they want
+                setEditingStep({ ...editingStep, ...stepData });
+              }
             }}
           />
         ) : (
           <StepEditor
             step={{
               id: 'new',
-              stepNumber: campaign.steps.length + 1,
-              day: campaign.steps.length + 1,
+              day: Math.max(...campaign.steps.map((s: CampaignStep) => s.day), 0) + 1,
               name: '',
               description: ''
             }}
             isOpen={showStepModal}
             onClose={() => setShowStepModal(false)}
-            availableTemplates={mockEmailTemplates}
-            onSave={(stepData) => {
-              // Add new step
-              const newStep: CampaignStep = {
-                ...stepData,
-                id: Date.now().toString(),
-                stepNumber: campaign.steps.length + 1,
-                day: campaign.steps.length + 1
-              };
-              setLocalCampaign(prev => prev ? {
-                ...prev,
-                steps: [...prev.steps, newStep]
-              } : null);
-              showToast('Step added successfully', 'success');
+            availableTemplates={templates}
+            allSteps={campaign.steps}
+            onSave={async (stepData) => {
+              // Close modal immediately for optimistic UI
               setShowStepModal(false);
               setEditingStep(null);
+
+              try {
+                // Create new step via API
+                await createSequenceStep.trigger({
+                  sequenceId: id,
+                  userId: user?.id || user?.neonId || '',
+                  stepData: {
+                    ...stepData
+                  }
+                });
+                showToast('Step added successfully', 'success');
+              } catch (error) {
+                console.error('Error creating step:', error);
+                // Handle step creation error
+                // Reopen modal if creation fails
+                setShowStepModal(true);
+                const { id: _id, day: _day, ...cleanStepData } = stepData;
+                setEditingStep({
+                  ...cleanStepData,
+                  id: 'new',
+                  day: Math.max(...campaign.steps.map((s: CampaignStep) => s.day), 0) + 1
+                });
+                // Display specific backend error message if available
+                const errorMessage = (error as any)?.message || (error as any)?.error?.message || 'Failed to create step';
+                showToast(errorMessage, 'error');
+              }
             }}
           />
         )}
@@ -838,7 +915,8 @@ const SequenceDetailsPage: React.FC = () => {
         onDeleteProspect={handleRemoveProspect}
         isUpdating={pauseProspect.isMutating || resumeProspect.isMutating || removingProspectIds.has(selectedProspect?.prospect?.id || '')}
       />
-    </div>
+
+          </div>
   );
 };
 

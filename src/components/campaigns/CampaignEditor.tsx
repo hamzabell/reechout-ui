@@ -16,7 +16,7 @@ import {
 
 interface CampaignStep {
   id: string;
-  stepNumber: number;
+  day: number;
   delayDays: number;
   delayHours?: number;
   name?: string;
@@ -58,7 +58,7 @@ interface CampaignProspect {
     status: string;
     stepEmailAction: {
       step: {
-        stepNumber: number;
+        day: number;
         name?: string;
       };
     };

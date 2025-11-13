@@ -9,7 +9,7 @@ interface Task {
   status: 'PENDING' | 'COMPLETED' | 'CANCELLED';
   dueDate?: string;
   campaignName: string;
-  stepNumber: number;
+  day: number;
   stepName?: string;
   isOverdue: boolean;
   daysUntilDue?: number;
@@ -34,7 +34,7 @@ const mockTasks: Task[] = [
     status: 'PENDING',
     dueDate: '2024-01-20T00:00:00Z',
     campaignName: 'Welcome Series',
-    stepNumber: 2,
+    day: 2,
     stepName: 'Content Review',
     isOverdue: false,
     daysUntilDue: 2,
@@ -46,7 +46,7 @@ const mockTasks: Task[] = [
     status: 'COMPLETED',
     dueDate: '2024-01-18T00:00:00Z',
     campaignName: 'Product Launch',
-    stepNumber: 1,
+    day: 1,
     stepName: 'Audience Selection',
     isOverdue: false,
     daysUntilDue: 0,
@@ -58,7 +58,7 @@ const mockTasks: Task[] = [
     status: 'PENDING',
     dueDate: '2024-01-16T00:00:00Z',
     campaignName: 'Re-engagement Sequence',
-    stepNumber: 4,
+    day: 4,
     stepName: 'Scheduling',
     isOverdue: true,
     daysUntilDue: -1,
@@ -70,7 +70,7 @@ const mockTasks: Task[] = [
     status: 'PENDING',
     dueDate: '2024-01-22T00:00:00Z',
     campaignName: 'Newsletter January',
-    stepNumber: 3,
+    day: 3,
     stepName: 'Template Testing',
     isOverdue: false,
     daysUntilDue: 4,
@@ -82,7 +82,7 @@ const mockTasks: Task[] = [
     status: 'CANCELLED',
     dueDate: '2024-01-17T00:00:00Z',
     campaignName: 'Holiday Promotion',
-    stepNumber: 5,
+    day: 5,
     stepName: 'Performance Review',
     isOverdue: false,
     daysUntilDue: -1,
@@ -94,7 +94,7 @@ const mockTasks: Task[] = [
     status: 'PENDING',
     dueDate: '2024-01-25T00:00:00Z',
     campaignName: 'Q1 Planning',
-    stepNumber: 1,
+    day: 1,
     stepName: 'List Management',
     isOverdue: false,
     daysUntilDue: 7,
@@ -291,7 +291,7 @@ const TasksPage: React.FC = () => {
                       Sequence: <span className="font-medium text-gray-700">{task.campaignName}</span>
                     </div>
                     <div>
-                      Step {task.stepNumber}
+                      Step {task.day}
                       {task.stepName && (
                         <span className="text-gray-700 font-medium">: {task.stepName}</span>
                       )}
