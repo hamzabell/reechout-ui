@@ -31,8 +31,9 @@ exports.handler = async (event, context) => {
       }
     });
 
+  
     if (existingProspect) {
-      return createErrorResponse('A prospect with this email already exists', 409, event);
+      return createErrorResponse('A prospect with this email already exists for this user', 409, event);
     }
 
     // Validate user exists
@@ -89,10 +90,25 @@ exports.handler = async (event, context) => {
 
   } catch (error) {
     console.error('Error creating prospect:', error);
+    console.error('Error details:', {
+      code: error.code,
+      message: error.message,
+      meta: error.meta,
+      prospectData: {
+        email: prospectData.email,
+        userId: prospectData.userId,
+        name: prospectData.name
+      }
+    });
 
     // Handle unique constraint error
     if (error.code === 'P2002') {
-      return createErrorResponse('A prospect with this email already exists', 409, event);
+      // Check if the constraint violation is for the [email, createdBy] unique constraint
+      const target = error.meta?.target;
+      if (target && Array.isArray(target) && target.includes('email')) {
+        return createErrorResponse('A prospect with this email already exists for this user', 409, event);
+      }
+      return createErrorResponse('Unique constraint violation', 409, event);
     }
 
     // Handle foreign key constraint error
