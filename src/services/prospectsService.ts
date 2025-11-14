@@ -1,4 +1,4 @@
-import { get, post, put, del, API_ENDPOINTS, PaginatedResponse } from './apiService';
+import { get, post, put, deleteRequest as del, API_ENDPOINTS, PaginatedResponse } from './apiService';
 
 export interface CreateProspectRequest {
   name: string;

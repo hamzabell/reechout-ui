@@ -4,10 +4,8 @@
  */
 
 const CORS_HEADERS = {
-  'Access-Control-Allow-Origin': '*', // Allow all origins for development
   'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type, Authorization, Accept, X-User-ID',
-  'Access-Control-Allow-Credentials': 'true' // Changed to string for consistency
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization, Accept, X-User-ID'
 };
 
 /**
@@ -17,8 +15,8 @@ const CORS_HEADERS = {
  * @returns {Object} Response object with CORS headers
  */
 function addCorsHeaders(response = {}, event = null) {
-  let origin = CORS_HEADERS['Access-Control-Allow-Origin'];
-  let credentials = CORS_HEADERS['Access-Control-Allow-Credentials'];
+  let origin;
+  let credentials;
 
   // In development, allow the specific origin from the request
   if (event && event.headers) {
@@ -31,23 +29,31 @@ function addCorsHeaders(response = {}, event = null) {
       origin = requestOrigin;
       credentials = 'true';
     } else {
-      // If no origin, don't use credentials with wildcard
+      // If no origin, use wildcard without credentials
+      origin = '*';
       credentials = 'false';
     }
   } else {
-    // When no event, disable credentials to allow wildcard origin
+    // When no event, use wildcard without credentials
+    origin = '*';
     credentials = 'false';
+  }
+
+  const headers = {
+    ...response.headers,
+    'Access-Control-Allow-Origin': origin,
+    'Access-Control-Allow-Methods': CORS_HEADERS['Access-Control-Allow-Methods'],
+    'Access-Control-Allow-Headers': CORS_HEADERS['Access-Control-Allow-Headers']
+  };
+
+  // Only add credentials header if it's 'true'
+  if (credentials === 'true') {
+    headers['Access-Control-Allow-Credentials'] = credentials;
   }
 
   return {
     ...response,
-    headers: {
-      ...response.headers,
-      'Access-Control-Allow-Origin': origin,
-      'Access-Control-Allow-Methods': CORS_HEADERS['Access-Control-Allow-Methods'],
-      'Access-Control-Allow-Headers': CORS_HEADERS['Access-Control-Allow-Headers'],
-      'Access-Control-Allow-Credentials': credentials
-    }
+    headers
   };
 }
 

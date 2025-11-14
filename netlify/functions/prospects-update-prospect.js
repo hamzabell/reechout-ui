@@ -1,8 +1,15 @@
+require('dotenv').config();
 const { PrismaClient } = require('@prisma/client');
 const { handleCors, addCorsHeaders } = require('./cors-helper');
 
 // Initialize Prisma Client for serverless environment
-const prisma = new PrismaClient();
+const prisma = new PrismaClient({
+  datasources: {
+    db: {
+      url: process.env.DATABASE_URL
+    }
+  }
+});
 
 exports.handler = async (event, context) => {
   // Handle CORS preflight requests

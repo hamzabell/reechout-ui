@@ -1,5 +1,5 @@
 import { SWRConfiguration } from 'swr';
-import { get, post, put, del } from '../services/apiService';
+import { get, post, put, deleteRequest as del } from '../services/apiService';
 
 // Enhanced fetcher function for SWR
 export const swrFetcher = async (key: string | [string, any]) => {
@@ -13,7 +13,13 @@ export const swrFetcher = async (key: string | [string, any]) => {
       url = key;
     }
 
-    const response = await get(url, params);
+    // For GET requests with params, convert to query string
+    if (params) {
+      const queryString = new URLSearchParams(params).toString();
+      url = queryString ? `${url}?${queryString}` : url;
+    }
+
+    const response = await get(url);
     return response;
   } catch (error) {
     throw error;
@@ -42,9 +48,15 @@ export const swrSequenceDetailsFetcher = async (key: string | [string, any]) => 
       url = key;
     }
 
-    const response = await post(url, params);
+    // Ensure params is properly formatted for the API
+    const requestBody = params && typeof params === 'object' ? params : {};
+    
+    console.log('SWR sequence details fetcher:', { url, params: requestBody });
+    
+    const response = await post(url, requestBody);
     return response;
   } catch (error) {
+    console.error('Error in swrSequenceDetailsFetcher:', error);
     throw error;
   }
 };

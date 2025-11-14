@@ -1,4 +1,4 @@
-import { get, post, put, del } from './apiService';
+import { get, post, put, deleteRequest as del } from './apiService';
 import {
   Campaign,
   EmailTemplate,

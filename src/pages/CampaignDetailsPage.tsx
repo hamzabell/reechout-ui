@@ -112,6 +112,7 @@ const SequenceDetailsPage: React.FC = () => {
   const [viewMode, setViewMode] = useState<ViewMode>('overview');
   const [showStepModal, setShowStepModal] = useState(false);
   const [editingStep, setEditingStep] = useState<CampaignStep | null>(null); // Force recompile
+  const [isSavingStep, setIsSavingStep] = useState(false);
   const [showSchedulerModal, setShowSchedulerModal] = useState(false);
   const [showAddProspectsModal, setShowAddProspectsModal] = useState(false);
   const [selectedProspect, setSelectedProspect] = useState<CampaignProspect | null>(null);
@@ -337,6 +338,13 @@ const SequenceDetailsPage: React.FC = () => {
       setHasChanges(false);
     }
   }, [localCampaign, apiCampaign]);
+
+  // Prevent modal from reopening while saving step
+  useEffect(() => {
+    if (isSavingStep && showStepModal) {
+      setShowStepModal(false);
+    }
+  }, [isSavingStep, showStepModal]);
 
   if (isLoading) {
     return (
@@ -812,6 +820,9 @@ const SequenceDetailsPage: React.FC = () => {
             availableTemplates={templates}
             allSteps={campaign.steps}
             onSave={async (stepData) => {
+              // Prevent modal from reopening during save operation
+              setIsSavingStep(true);
+              
               // Close modal immediately for optimistic UI
               setShowStepModal(false);
 
@@ -827,14 +838,16 @@ const SequenceDetailsPage: React.FC = () => {
                 setEditingStep(null); // Clear editing step only on success
               } catch (error) {
                 console.error('Error updating step:', error);
-                // Don't automatically reopen modal on error - user can manually reopen if needed
-                // This prevents the modal from flickering/reopening after errors
                 // Display specific backend error message if available
                 const errorMessage = (error as any)?.message || (error as any)?.error?.message || 'Failed to update step';
                 showToast(errorMessage, 'error');
                 
-                // Keep the editing step data so user can retry if they want
+                // Keep the editing step data so user can retry if they want, but DO NOT reopen the modal
+                // The user can manually click the edit button again to fix the issue
                 setEditingStep({ ...editingStep, ...stepData });
+              } finally {
+                // Reset saving flag after operation completes
+                setTimeout(() => setIsSavingStep(false), 100);
               }
             }}
           />

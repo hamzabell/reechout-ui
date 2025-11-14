@@ -69,10 +69,10 @@ const StepEditor: React.FC<StepEditorProps> = ({
   const [editedStep, setEditedStep] = useState<CampaignStep>({ ...step });
   const [dayError, setDayError] = useState<string>('');
 
-  // Update edited step when step prop changes
+  // Update edited step when step prop changes (only when editing a different step)
   useEffect(() => {
     setEditedStep({ ...step });
-  }, [step]);
+  }, [step.id]);
 
   
   const handleSave = () => {

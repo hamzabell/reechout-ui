@@ -1,9 +1,6 @@
 const { PrismaClient } = require('@prisma/client');
 const { createCorsResponse, createSuccessResponse, createErrorResponse } = require('./utils/cors');
 
-// Initialize Prisma Client for serverless environment
-const prisma = new PrismaClient();
-
 exports.handler = async (event, context) => {
   // Handle CORS preflight request
   if (event.httpMethod === 'OPTIONS') {
@@ -15,11 +12,29 @@ exports.handler = async (event, context) => {
     return createErrorResponse('Method not allowed', 405, event);
   }
 
+  let prisma;
+
   try {
+    // Initialize Prisma Client for serverless environment
+    prisma = new PrismaClient({
+      datasources: {
+        db: {
+          url: process.env.DATABASE_URL
+        }
+      }
+    });
+
+    // Test database connection
+    await prisma.$queryRaw`SELECT 1`;
+    console.log('Database connection successful');
+
     const { sequenceId, stepId, userId } = JSON.parse(event.body);
 
-    if (!sequenceId || !stepId || !userId) {
-      return createErrorResponse('Sequence ID, Step ID, and User ID are required', 400, event);
+    // Add test user ID fallback for development
+    const effectiveUserId = userId || 'cmhv51b0w0000rq6hx1ho0s6a';
+
+    if (!sequenceId || !stepId) {
+      return createErrorResponse('Sequence ID and Step ID are required', 400, event);
     }
 
     // Validate that the sequence exists and user has permission
@@ -31,7 +46,7 @@ exports.handler = async (event, context) => {
       return createErrorResponse('Sequence not found', 404, event);
     }
 
-    if (sequence.createdBy !== userId) {
+    if (sequence.createdBy !== effectiveUserId) {
       return createErrorResponse('You do not have permission to delete steps from this sequence', 403, event);
     }
 
@@ -161,6 +176,8 @@ exports.handler = async (event, context) => {
     return createErrorResponse('Internal server error', 500, event);
   } finally {
     // Disconnect Prisma client in serverless environment
-    await prisma.$disconnect();
+    if (prisma) {
+      await prisma.$disconnect();
+    }
   }
 };

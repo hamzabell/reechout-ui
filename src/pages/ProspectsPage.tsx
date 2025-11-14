@@ -472,8 +472,10 @@ const ProspectsPage: React.FC = () => {
         try {
           currentIndex++;
 
-          // Show progress update
-          showToast(`Uploading prospect ${currentIndex} of ${validation.valid.length}...`, 'info');
+          // Show progress update only every 5 prospects or for the last one
+          if (currentIndex % 5 === 0 || currentIndex === validation.valid.length) {
+            showToast(`Processing ${currentIndex} of ${validation.valid.length} prospects...`, 'info');
+          }
 
           // Use the existing create prospect hook
           const createData = {
@@ -507,11 +509,19 @@ const ProspectsPage: React.FC = () => {
           }
 
         } catch (error: any) {
-          console.error(`Error uploading prospect ${currentIndex}:`, error);
+          // Check if it's a duplicate error (409 Conflict or error message indicates duplicate)
+          const isDuplicateError = 
+            error.message?.includes('HTTP error! status: 409') ||
+            error.message?.includes('already exists') ||
+            error.message?.includes('duplicate') ||
+            error.message?.includes('Conflict') ||
+            error.status === 409 ||
+            (error.response && error.response.status === 409);
 
-          // Check if it's a duplicate error
-          if (error.status === 409 || error.message?.includes('already exists')) {
+          if (isDuplicateError) {
             results.duplicates++;
+            // Use console.info instead of console.log to indicate this is expected behavior
+            console.info(`Duplicate skipped: ${prospect.name} (${prospect.email}) - already exists in your prospects`);
             // Remove the temp prospect from the UI
             await globalMutate(
               (key: any) => Array.isArray(key) && key[0] === '/prospects-list-prospects',
@@ -528,6 +538,7 @@ const ProspectsPage: React.FC = () => {
             );
           } else {
             results.errors++;
+            console.error(`Upload error for ${prospect.name}:`, error.message || error);
             // Remove the temp prospect from the UI
             await globalMutate(
               (key: any) => Array.isArray(key) && key[0] === '/prospects-list-prospects',
@@ -550,12 +561,18 @@ const ProspectsPage: React.FC = () => {
       }
 
       // 4. Show final success message with detailed results
-      let message = `Upload complete! `;
-      if (results.imported > 0) message += `${results.imported} imported`;
-      if (results.duplicates > 0) message += `${results.imported > 0 ? ', ' : ''}${results.duplicates} duplicates`;
-      if (results.errors > 0) message += `${results.imported > 0 || results.duplicates > 0 ? ', ' : ''}${results.errors} errors`;
+      let message = `CSV import completed: `;
+      if (results.imported > 0) message += `${results.imported} new prospect${results.imported !== 1 ? 's' : ''} added`;
+      if (results.duplicates > 0) message += `${results.imported > 0 ? ', ' : ''}${results.duplicates} duplicate${results.duplicates !== 1 ? 's' : ''} skipped`;
+      if (results.errors > 0) message += `${results.imported > 0 || results.duplicates > 0 ? ', ' : ''}${results.errors} error${results.errors !== 1 ? 's' : ''}`;
 
-      showToast(message, results.errors === 0 ? 'success' : 'warning');
+      // Show success if there are no actual errors (duplicates are expected)
+      const toastType = results.errors === 0 ? 'success' : 'warning';
+      const toastMessage = results.errors === 0 && results.duplicates > 0 && results.imported === 0
+        ? `CSV processed: ${results.duplicates} duplicate${results.duplicates !== 1 ? 's' : ''} found and skipped (no new prospects added)`
+        : message;
+
+      showToast(toastMessage, toastType);
       
     } catch (error) {
       showToast(error instanceof Error ? error.message : 'Upload failed', 'error');

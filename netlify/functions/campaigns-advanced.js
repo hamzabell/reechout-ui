@@ -1,20 +1,37 @@
 const { createCorsResponse, createSuccessResponse, createErrorResponse } = require('./utils/cors');
-const prisma = require('./utils/prisma');
 
 exports.handler = async (event, context) => {
+  console.log('campaigns-advanced called with:', JSON.stringify(event, null, 2));
+  
   // Handle CORS preflight request
   if (event.httpMethod === 'OPTIONS') {
-    return createCorsResponse();
+    console.log('Handling OPTIONS request');
+    return createCorsResponse(event);
   }
 
   // Allow both GET and POST requests for flexibility
   if (event.httpMethod !== 'GET' && event.httpMethod !== 'POST') {
-    return createErrorResponse('Method not allowed', 405);
+    return createErrorResponse('Method not allowed', 405, event);
   }
 
+  let prisma;
+  
   try {
-    // Ensure Prisma connection is established
-    await prisma.$connect();
+    // Import Prisma dynamically to avoid connection issues
+    const { PrismaClient } = require('@prisma/client');
+    prisma = new PrismaClient({
+      datasources: {
+        db: {
+          url: process.env.DATABASE_URL
+        }
+      }
+    });
+    
+    console.log('Prisma client created, testing connection...');
+    
+    // Test the connection with a simple query
+    await prisma.$queryRaw`SELECT 1`;
+    console.log('Database connection successful');
     let userId, filters;
 
     // Parse request data based on method
@@ -29,8 +46,8 @@ exports.handler = async (event, context) => {
       const queryParams = event.queryStringParameters || {};
 
       // For GET requests, userId should come from authentication context
-      // For now, we'll extract it from headers or use a default
-      userId = event.headers['x-user-id'] || queryParams.userId;
+      // For development, we'll extract it from headers or query params or use a test default
+      userId = event.headers['x-user-id'] || queryParams.userId || 'cmhv51b0w0000rq6hx1ho0s6a'; // Test user ID
 
       filters = {
         search: queryParams.search || '',
@@ -44,7 +61,7 @@ exports.handler = async (event, context) => {
     }
 
     if (!userId) {
-      return createErrorResponse('User ID is required', 400);
+      return createErrorResponse('User ID is required', 400, event);
     }
 
     // Parse filters for filtering and search
@@ -267,7 +284,7 @@ exports.handler = async (event, context) => {
         limit: parsedLimit,
         offset: parsedOffset,
         analytics
-      });
+      }, 200, event);
     };
 
     // Use Promise.race to handle timeout
@@ -278,9 +295,11 @@ exports.handler = async (event, context) => {
     console.error('Error fetching campaigns:', error);
     console.error('Error stack:', error.stack);
     console.error('Error details:', JSON.stringify(error, null, 2));
-    return createErrorResponse(`Internal server error: ${error.message}`, 500);
+    return createErrorResponse(`Internal server error: ${error.message}`, 500, event);
   } finally {
     // Disconnect Prisma client in serverless environment
-    await prisma.$disconnect();
+    if (prisma) {
+      await prisma.$disconnect();
+    }
   }
 };

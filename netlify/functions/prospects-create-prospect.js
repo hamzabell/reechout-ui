@@ -1,8 +1,15 @@
+require('dotenv').config();
 const { PrismaClient } = require('@prisma/client');
 const { handleCors, addCorsHeaders } = require('./cors-helper');
 
 // Initialize Prisma Client for serverless environment
-const prisma = new PrismaClient();
+const prisma = new PrismaClient({
+  datasources: {
+    db: {
+      url: process.env.DATABASE_URL
+    }
+  }
+});
 
 exports.handler = async (event, context) => {
   // Handle CORS preflight requests
@@ -31,23 +38,6 @@ exports.handler = async (event, context) => {
       });
     }
 
-    // Check if prospect with this email already exists for this user
-    const existingProspect = await prisma.prospect.findFirst({
-      where: {
-        email: prospectData.email,
-        createdBy: prospectData.userId
-      }
-    });
-
-    if (existingProspect) {
-      return addCorsHeaders({
-        statusCode: 409,
-        body: JSON.stringify({
-          error: 'A prospect with this email already exists'
-        })
-      });
-    }
-
     // Validate user exists
     const user = await prisma.user.findUnique({
       where: { id: prospectData.userId }
@@ -58,6 +48,47 @@ exports.handler = async (event, context) => {
         statusCode: 404,
         body: JSON.stringify({ error: 'User not found' })
       });
+    }
+
+    // Check if prospect with same email already exists for this specific user
+    // Use a more robust approach with proper error handling
+    let existingProspect = null;
+
+    try {
+      console.log('Checking for duplicate prospect:', {
+        email: prospectData.email.toLowerCase(),
+        userId: prospectData.userId
+      });
+
+      // Try to find existing prospect with retry logic
+      existingProspect = await prisma.prospect.findFirst({
+        where: {
+          email: prospectData.email.toLowerCase(),
+          createdBy: prospectData.userId
+        }
+      });
+
+      console.log('Duplicate check result:', {
+        email: prospectData.email.toLowerCase(),
+        userId: prospectData.userId,
+        found: !!existingProspect,
+        prospect: existingProspect
+      });
+
+      if (existingProspect) {
+        return addCorsHeaders({
+          statusCode: 409,
+          body: JSON.stringify({
+            error: `Prospect with email ${prospectData.email} already exists in your account`,
+            existingProspectId: existingProspect.id
+          })
+        });
+      }
+    } catch (dbError) {
+      console.error('Database error during duplicate check:', dbError);
+      // If we can't check for duplicates due to database issues,
+      // let the database constraint handle it during creation
+      console.log('Proceeding with prospect creation - database will handle duplicates via constraint');
     }
 
     // Create the prospect - filter out unknown fields
@@ -99,14 +130,20 @@ exports.handler = async (event, context) => {
     });
 
   } catch (error) {
-    console.error('Error creating prospect:', error);
+    // Only log unexpected errors, not duplicate constraint errors
+    if (error.code !== 'P2002') {
+      console.error('Error creating prospect:', error);
+    }
 
-    // Handle unique constraint error
+    // Handle unique constraint error (this should be caught by our explicit check above, but as a fallback)
     if (error.code === 'P2002') {
+      // Extract field information from the error if available
+      const targetField = error.meta?.target?.[0] || 'email';
       return addCorsHeaders({
         statusCode: 409,
         body: JSON.stringify({
-          error: 'A prospect with this email already exists'
+          error: `Duplicate prospect detected. A prospect with this ${targetField} already exists for your account.`,
+          details: 'This prospect was not added to avoid duplicates in your database.'
         })
       });
     }

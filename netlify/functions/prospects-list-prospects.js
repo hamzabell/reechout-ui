@@ -1,25 +1,38 @@
+require('dotenv').config();
 const { PrismaClient } = require('@prisma/client');
-const { createCorsResponse, createSuccessResponse, createErrorResponse } = require('./utils/cors');
+const { handleCors, addCorsHeaders } = require('./cors-helper');
 
 // Initialize Prisma Client for serverless environment
-const prisma = new PrismaClient();
+const prisma = new PrismaClient({
+  datasources: {
+    db: {
+      url: process.env.DATABASE_URL
+    }
+  }
+});
 
 exports.handler = async (event, context) => {
   // Handle CORS preflight request
   if (event.httpMethod === 'OPTIONS') {
-    return createCorsResponse();
+    return handleCors();
   }
 
   // Only allow POST requests
   if (event.httpMethod !== 'POST') {
-    return createErrorResponse('Method not allowed', 405);
+    return addCorsHeaders({
+      statusCode: 405,
+      body: JSON.stringify({ error: 'Method not allowed' })
+    });
   }
 
   try {
     const { userId, ...filters } = JSON.parse(event.body);
 
     if (!userId) {
-      return createErrorResponse('User ID is required', 400);
+      return addCorsHeaders({
+        statusCode: 400,
+        body: JSON.stringify({ error: 'User ID is required' })
+      });
     }
 
     // Parse filters for filtering and search
@@ -122,17 +135,43 @@ exports.handler = async (event, context) => {
     // Calculate if there are more prospects
     const hasMore = parsedOffset + prospects.length < total;
 
-    return createSuccessResponse({
-      prospects: transformedProspects,
-      total,
-      hasMore,
-      limit: parsedLimit,
-      offset: parsedOffset
+    return addCorsHeaders({
+      statusCode: 200,
+      body: JSON.stringify({
+        prospects: transformedProspects,
+        total,
+        hasMore,
+        limit: parsedLimit,
+        offset: parsedOffset
+      })
     });
 
   } catch (error) {
     console.error('Error fetching prospects:', error);
-    return createErrorResponse('Internal server error', 500);
+
+    // Handle specific error cases
+    if (error.code === 'P2002') {
+      return addCorsHeaders({
+        statusCode: 409,
+        body: JSON.stringify({
+          error: 'Database constraint violation'
+        })
+      });
+    }
+
+    if (error.code === 'P2003') {
+      return addCorsHeaders({
+        statusCode: 400,
+        body: JSON.stringify({
+          error: 'Invalid user ID provided'
+        })
+      });
+    }
+
+    return addCorsHeaders({
+      statusCode: 500,
+      body: JSON.stringify({ error: 'Internal server error' })
+    });
   } finally {
     // Disconnect Prisma client in serverless environment
     await prisma.$disconnect();

@@ -5,7 +5,7 @@ import { useModalWithAutoId } from '../providers/ModalProvider';
 import { useNeon } from '../providers/NeonProvider';
 import { useTemplates, useCreateTemplate, useDeleteTemplate, useDuplicateTemplate } from '../hooks/useTemplates';
 import { useSWRMutation } from '../hooks/useSWRMutation';
-import { del } from '../services/apiService';
+import { deleteRequest as del } from '../services/apiService';
 import { EmailTemplate } from '../types';
 import Button from '../components/Button';
 import ModalWrapper from '../components/ModalWrapper';

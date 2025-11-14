@@ -33,8 +33,23 @@
   status = 200
 
 [[redirects]]
+  from = "/campaigns/advanced"
+  to = "/.netlify/functions/campaigns-advanced"
+  status = 200
+
+[[redirects]]
   from = "/api/campaigns/debug"
   to = "/.netlify/functions/campaigns-debug"
+  status = 200
+
+[[redirects]]
+  from = "/api/campaigns-get-sequence-details"
+  to = "/.netlify/functions/campaigns-get-sequence-details"
+  status = 200
+
+[[redirects]]
+  from = "/campaigns-get-sequence-details"
+  to = "/.netlify/functions/campaigns-get-sequence-details"
   status = 200
 
 # Redirects for React Router

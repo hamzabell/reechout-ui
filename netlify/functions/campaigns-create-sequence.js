@@ -18,19 +18,19 @@ function generateUUID() {
 exports.handler = async (event, context) => {
   // Handle CORS preflight request
   if (event.httpMethod === 'OPTIONS') {
-    return createCorsResponse();
+    return createCorsResponse(event);
   }
 
   // Only allow POST requests
   if (event.httpMethod !== 'POST') {
-    return createErrorResponse('Method not allowed', 405);
+    return createErrorResponse('Method not allowed', 405, event);
   }
 
   try {
     const { userId, sequenceData } = JSON.parse(event.body);
 
     if (!userId) {
-      return createErrorResponse('User ID is required', 400);
+      return createErrorResponse('User ID is required', 400, event);
     }
 
     // Generate a new UUID for the sequence
@@ -53,7 +53,7 @@ exports.handler = async (event, context) => {
     });
 
     if (!user) {
-      return createErrorResponse('User not found', 404);
+      return createErrorResponse('User not found', 404, event);
     }
 
     // Create the sequence in the database
@@ -122,21 +122,21 @@ exports.handler = async (event, context) => {
     return createSuccessResponse({
       campaign: transformedSequence,
       sequenceId: sequenceId
-    });
+    }, 200, event);
 
   } catch (error) {
     console.error('Error creating sequence:', error);
     
     // Handle specific database errors
     if (error.code === 'P2002') {
-      return createErrorResponse('A sequence with this ID already exists', 409);
+      return createErrorResponse('A sequence with this ID already exists', 409, event);
     }
     
     if (error.code === 'P2025') {
-      return createErrorResponse('User not found', 404);
+      return createErrorResponse('User not found', 404, event);
     }
     
-    return createErrorResponse('Internal server error', 500);
+    return createErrorResponse('Internal server error', 500, event);
   } finally {
     // Disconnect Prisma client in serverless environment
     await prisma.$disconnect();

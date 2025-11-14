@@ -4,11 +4,15 @@
   "description": "Netlify functions for Reechout application",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "db:generate": "prisma generate",
+    "db:push": "prisma db push",
+    "db:migrate": "prisma migrate dev"
   },
   "dependencies": {
     "@prisma/client": "^6.19.0",
-    "prisma": "^6.19.0"
+    "prisma": "^6.19.0",
+    "dotenv": "^17.2.3"
   },
   "keywords": [
     "netlify",

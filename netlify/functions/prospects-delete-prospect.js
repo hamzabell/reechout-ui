@@ -1,18 +1,28 @@
+require('dotenv').config();
 const { PrismaClient } = require('@prisma/client');
-const { createCorsResponse, createSuccessResponse, createErrorResponse } = require('./utils/cors');
+const { handleCors, addCorsHeaders } = require('./cors-helper');
 
 // Initialize Prisma Client for serverless environment
-const prisma = new PrismaClient();
+const prisma = new PrismaClient({
+  datasources: {
+    db: {
+      url: process.env.DATABASE_URL
+    }
+  }
+});
 
 exports.handler = async (event, context) => {
   // Handle CORS preflight request
   if (event.httpMethod === 'OPTIONS') {
-    return createCorsResponse(event);
+    return handleCors();
   }
 
   // Only allow DELETE requests
   if (event.httpMethod !== 'DELETE') {
-    return createErrorResponse('Method not allowed', 405, event);
+    return addCorsHeaders({
+      statusCode: 405,
+      body: JSON.stringify({ error: 'Method not allowed' })
+    });
   }
 
   try {
@@ -20,7 +30,12 @@ exports.handler = async (event, context) => {
 
     // Validate required fields
     if (!id || !userId) {
-      return createErrorResponse('Missing required fields: id, userId', 400, event);
+      return addCorsHeaders({
+        statusCode: 400,
+        body: JSON.stringify({
+          error: 'Missing required fields: id, userId'
+        })
+      });
     }
 
     // First check if the prospect exists and belongs to the user
@@ -32,7 +47,12 @@ exports.handler = async (event, context) => {
     });
 
     if (!existingProspect) {
-      return createErrorResponse('Prospect not found or you do not have permission to delete it', 404, event);
+      return addCorsHeaders({
+        statusCode: 404,
+        body: JSON.stringify({
+          error: 'Prospect not found or you do not have permission to delete it'
+        })
+      });
     }
 
     // Delete the prospect
@@ -40,25 +60,41 @@ exports.handler = async (event, context) => {
       where: { id }
     });
 
-    return createSuccessResponse({
-      message: 'Prospect deleted successfully',
-      deletedProspectId: id
-    }, 200, event);
+    return addCorsHeaders({
+      statusCode: 200,
+      body: JSON.stringify({
+        message: 'Prospect deleted successfully',
+        deletedProspectId: id
+      })
+    });
 
   } catch (error) {
     console.error('Error deleting prospect:', error);
 
     // Handle record not found error
     if (error.code === 'P2025') {
-      return createErrorResponse('Prospect not found', 404, event);
+      return addCorsHeaders({
+        statusCode: 404,
+        body: JSON.stringify({
+          error: 'Prospect not found'
+        })
+      });
     }
 
     // Handle foreign key constraint error (prospect is referenced by other records)
     if (error.code === 'P2003') {
-      return createErrorResponse('Cannot delete prospect as it is referenced by other records (campaigns, emails, etc.)', 400, event);
+      return addCorsHeaders({
+        statusCode: 400,
+        body: JSON.stringify({
+          error: 'Cannot delete prospect as it is referenced by other records (campaigns, emails, etc.)'
+        })
+      });
     }
 
-    return createErrorResponse('Internal server error', 500, event);
+    return addCorsHeaders({
+      statusCode: 500,
+      body: JSON.stringify({ error: 'Internal server error' })
+    });
   } finally {
     // Disconnect Prisma client in serverless environment
     await prisma.$disconnect();

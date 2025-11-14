@@ -58,7 +58,7 @@ model EmailTemplate {
 model Prospect {
   id                String             @id @default(cuid())
   name              String
-  email             String             @unique
+  email             String
   company           String?
   title             String?
   website           String?
@@ -78,6 +78,7 @@ model Prospect {
   campaignProspects CampaignProspect[]
   creator           User               @relation(fields: [createdBy], references: [id], onDelete: Cascade)
 
+  @@unique([email, createdBy])  // Email should be unique per user
   @@index([status])
   @@map("prospects")
 }
