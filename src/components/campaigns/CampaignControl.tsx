@@ -1,5 +1,5 @@
 import React from 'react';
-import { FiPlay, FiPause, FiSquare, FiCalendar } from 'react-icons/fi';
+import { FiPlay, FiPause, FiSquare, FiCalendar, FiX } from 'react-icons/fi';
 import { useAuth } from '../../hooks/useAuth';
 import { useToast } from '../../hooks/useToast';
 import { useConfirm } from '../../hooks/useConfirm';
@@ -13,11 +13,14 @@ import {
 interface CampaignControlProps {
   campaign: {
     id: string;
-    status: 'DRAFT' | 'ACTIVE' | 'PAUSED' | 'COMPLETED' | 'CANCELLED' | 'draft' | 'sending' | 'paused' | 'completed';
+    status: 'DRAFT' | 'ACTIVE' | 'PAUSED' | 'COMPLETED' | 'CANCELLED' | 'SCHEDULED' | 'draft' | 'sending' | 'paused' | 'completed' | 'scheduled' | 'cancelled';
     name: string;
     startedAt?: string;
+    scheduledAt?: string;
     pausedAt?: string;
     completedAt?: string;
+    steps?: any[];
+    prospects?: any[];
   };
   onScheduleClick?: () => void;
   disabled?: boolean;
@@ -38,9 +41,50 @@ const CampaignControl: React.FC<CampaignControlProps> = ({
   const resumeCampaign = useResumeCampaign(campaign.id);
   const stopCampaign = useStopCampaign(campaign.id);
 
+  // Helper function to handle stop action (for both active and scheduled campaigns)
+  const handleStopCampaign = async () => {
+    if (!user) {
+      showToast('You must be logged in to stop this campaign', 'error');
+      return;
+    }
+
+    const confirmed = await confirmDanger({
+      message: campaign.status === 'SCHEDULED'
+        ? 'Are you sure you want to cancel this scheduled campaign? This action cannot be undone.'
+        : 'Are you sure you want to stop this campaign? This action cannot be undone.',
+      onConfirm: async () => {
+        try {
+          await stopCampaign.trigger({
+            sequenceId: campaign.id,
+            action: 'stop',
+            userId: user.id || user.neonUserId
+          });
+          showToast(campaign.status === 'SCHEDULED' ? 'Campaign schedule cancelled' : 'Campaign stopped successfully', 'success');
+        } catch (error) {
+          showToast(campaign.status === 'SCHEDULED' ? 'Failed to cancel schedule' : 'Failed to stop campaign', 'error');
+          console.error('Stop campaign error:', error);
+        }
+      }
+    });
+  };
+
   const handleStart = async () => {
     if (!user) {
       showToast('You must be logged in to start a campaign', 'error');
+      return;
+    }
+
+    // Validation: Check if campaign has steps
+    const steps = campaign.steps || [];
+    const prospects = campaign.prospects || [];
+
+    if (steps.length === 0) {
+      showToast('Cannot start campaign: No email steps have been created. Add at least one email step to start the campaign.', 'error');
+      return;
+    }
+
+    if (prospects.length === 0) {
+      showToast('Cannot start campaign: No prospects have been added. Add prospects to start the campaign.', 'error');
       return;
     }
 
@@ -48,7 +92,7 @@ const CampaignControl: React.FC<CampaignControlProps> = ({
       await startCampaign.trigger({
         sequenceId: campaign.id,
         action: 'start',
-        userId: user.id || user.neonId
+        userId: user.id || user.neonUserId
       });
       showToast('Campaign started successfully', 'success');
     } catch (error) {
@@ -67,7 +111,7 @@ const CampaignControl: React.FC<CampaignControlProps> = ({
       await pauseCampaign.trigger({
         sequenceId: campaign.id,
         action: 'pause',
-        userId: user.id || user.neonId
+        userId: user.id || user.neonUserId
       });
       showToast('Campaign paused successfully', 'success');
     } catch (error) {
@@ -86,7 +130,7 @@ const CampaignControl: React.FC<CampaignControlProps> = ({
       await resumeCampaign.trigger({
         sequenceId: campaign.id,
         action: 'resume',
-        userId: user.id || user.neonId
+        userId: user.id || user.neonUserId
       });
       showToast('Campaign resumed successfully', 'success');
     } catch (error) {
@@ -108,7 +152,7 @@ const CampaignControl: React.FC<CampaignControlProps> = ({
           await stopCampaign.trigger({
             sequenceId: campaign.id,
             action: 'stop',
-            userId: user.id || user.neonId
+            userId: user.id || user.neonUserId
           });
           showToast('Campaign stopped successfully', 'success');
         } catch (error) {
@@ -119,12 +163,51 @@ const CampaignControl: React.FC<CampaignControlProps> = ({
     });
   };
 
-  const isProcessing = startCampaign.isMutating || 
-                      pauseCampaign.isMutating || 
-                      resumeCampaign.isMutating || 
+  const isProcessing = startCampaign.isMutating ||
+                      pauseCampaign.isMutating ||
+                      resumeCampaign.isMutating ||
                       stopCampaign.isMutating;
 
+  // Helper function to get scheduled campaign info
+  const getScheduledInfo = () => {
+    if (!campaign.scheduledAt) return null;
+
+    const scheduledDate = new Date(campaign.scheduledAt);
+    const now = new Date();
+    const isOverdue = scheduledDate < now;
+
+    const timeUntil = scheduledDate.getTime() - now.getTime();
+    const daysUntil = Math.floor(timeUntil / (1000 * 60 * 60 * 24));
+    const hoursUntil = Math.floor((timeUntil % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+
+    let timeString = '';
+    if (daysUntil > 0) {
+      timeString = `${daysUntil} day${daysUntil > 1 ? 's' : ''}`;
+      if (hoursUntil > 0) timeString += ` ${hoursUntil} hour${hoursUntil > 1 ? 's' : ''}`;
+    } else if (hoursUntil > 0) {
+      timeString = `${hoursUntil} hour${hoursUntil > 1 ? 's' : ''}`;
+    } else {
+      timeString = 'Less than 1 hour';
+    }
+
+    return {
+      scheduledDate,
+      isOverdue,
+      timeUntil,
+      timeString,
+      formattedDate: scheduledDate.toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      })
+    };
+  };
+
   const getStatusInfo = () => {
+    const scheduledInfo = getScheduledInfo();
+
     switch (campaign.status) {
       case 'DRAFT':
       case 'draft':
@@ -132,6 +215,17 @@ const CampaignControl: React.FC<CampaignControlProps> = ({
           color: 'gray',
           text: 'Draft',
           description: 'Campaign has not started yet'
+        };
+      case 'SCHEDULED':
+      case 'scheduled':
+        return {
+          color: 'blue',
+          text: 'Scheduled',
+          description: scheduledInfo
+            ? (scheduledInfo.isOverdue
+                ? `Scheduled for ${scheduledInfo.formattedDate} (starting soon)`
+                : `Starts in ${scheduledInfo.timeString}`)
+            : 'Campaign is scheduled'
         };
       case 'ACTIVE':
       case 'sending':
@@ -155,6 +249,7 @@ const CampaignControl: React.FC<CampaignControlProps> = ({
           description: campaign.completedAt ? `Completed ${new Date(campaign.completedAt).toLocaleDateString()}` : 'Campaign has finished'
         };
       case 'CANCELLED':
+      case 'cancelled':
         return {
           color: 'red',
           text: 'Cancelled',
@@ -175,13 +270,14 @@ const CampaignControl: React.FC<CampaignControlProps> = ({
     <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
       {/* Status Badge */}
       <div className="flex items-center gap-3">
-        <div className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${
+        <div className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-sm font-medium ${
           statusInfo.color === 'green' ? 'bg-green-100 text-green-800' :
           statusInfo.color === 'yellow' ? 'bg-yellow-100 text-yellow-800' :
-          statusInfo.color === 'blue' ? 'bg-blue-100 text-blue-800' :
+          statusInfo.color === 'blue' ? (campaign.status === 'SCHEDULED' || campaign.status === 'scheduled' ? 'bg-indigo-100 text-indigo-800' : 'bg-blue-100 text-blue-800') :
           statusInfo.color === 'red' ? 'bg-red-100 text-red-800' :
           'bg-gray-100 text-gray-800'
         }`}>
+          {(campaign.status === 'SCHEDULED' || campaign.status === 'scheduled') && <FiCalendar className="w-3 h-3" />}
           {statusInfo.text}
         </div>
         <div className="text-sm text-gray-500">
@@ -220,6 +316,55 @@ const CampaignControl: React.FC<CampaignControlProps> = ({
                 Schedule
               </button>
             )}
+          </>
+        )}
+
+        {(campaign.status === 'SCHEDULED' || campaign.status === 'scheduled') && (
+          <>
+            <button
+              onClick={handleStart}
+              disabled={disabled || isProcessing}
+              className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              {isProcessing ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                  Starting...
+                </>
+              ) : (
+                <>
+                  <FiPlay className="w-4 h-4" />
+                  Start Now
+                </>
+              )}
+            </button>
+            {onScheduleClick && (
+              <button
+                onClick={onScheduleClick}
+                disabled={disabled || isProcessing}
+                className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                <FiCalendar className="w-4 h-4" />
+                Reschedule
+              </button>
+            )}
+            <button
+              onClick={handleStopCampaign}
+              disabled={disabled || isProcessing}
+              className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              {isProcessing ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                  Cancelling...
+                </>
+              ) : (
+                <>
+                  <FiX className="w-4 h-4" />
+                  Cancel Schedule
+                </>
+              )}
+            </button>
           </>
         )}
 
@@ -301,7 +446,7 @@ const CampaignControl: React.FC<CampaignControlProps> = ({
           </>
         )}
 
-        {(campaign.status === 'COMPLETED' || campaign.status === 'CANCELLED' || campaign.status === 'completed') && (
+        {(campaign.status === 'COMPLETED' || campaign.status === 'CANCELLED' || campaign.status === 'cancelled' || campaign.status === 'completed') && (
           <div className="text-sm text-gray-500 italic">
             Campaign has ended
           </div>

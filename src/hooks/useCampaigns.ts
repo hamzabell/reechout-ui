@@ -1,7 +1,7 @@
 import useSWR, { mutate, mutate as globalMutate } from 'swr';
 import { Campaign } from '../types';
 import { swrConfig, realtimeConfig, swrSequenceDetailsFetcher } from '../lib/swr-config';
-import { useSWRMutation, useOptimisticMutation } from './useSWRMutation';
+import { useSWRMutation } from './useSWRMutation';
 import { useCallback } from 'react';
 
 export interface CampaignFilters {
@@ -305,79 +305,243 @@ export const useScheduleEmails = (campaignId: string) => {
 
 // Hook for starting campaigns
 export const useStartCampaign = (campaignId: string) => {
-  return useOptimisticMutation(
+  return useSWRMutation(
     '/campaigns-control',
     'POST',
-    () => (current: Campaign) => ({
-      ...current,
-      status: 'ACTIVE' as const,
-      startedAt: new Date().toISOString(),
-    }),
     {
-      invalidateQueries: [
-        `/campaigns/${campaignId}`,
-        'campaigns',
-        '/campaigns/advanced'
-      ],
+      optimisticUpdate: (variables: any) => {
+        const now = new Date().toISOString();
+        return {
+          success: true,
+          message: 'Starting campaign...',
+          sequenceId: variables.sequenceId,
+          optimisticStatus: 'sending',
+          startedAt: now
+        };
+      },
+      onSuccess: (data, variables, optimisticData) => {
+        // Update sequence details cache with new status
+        const sequenceKey = ['/campaigns-get-sequence-details', { sequenceId: campaignId }];
+        globalMutate(sequenceKey, (current: any) => {
+          if (current?.campaign) {
+            return {
+              ...current,
+              campaign: {
+                ...current.campaign,
+                status: 'sending',
+                startedAt: optimisticData?.startedAt || new Date().toISOString(),
+              }
+            };
+          }
+          return current;
+        }, false);
+
+        // Update campaigns list cache
+        globalMutate('/campaigns/advanced', (current: any) => {
+          if (current?.campaigns) {
+            return {
+              ...current,
+              campaigns: current.campaigns.map((campaign: any) =>
+                campaign.id === campaignId
+                  ? { ...campaign, status: 'sending', startedAt: optimisticData?.startedAt || new Date().toISOString() }
+                  : campaign
+              )
+            };
+          }
+          return current;
+        }, false);
+
+        // Invalidate tasks cache to show newly created tasks immediately
+        globalMutate('/tasks-get-tasks');
+        globalMutate('/tasks/get-tasks');
+
+        // If there's a specific tasks endpoint for this campaign, invalidate it too
+        globalMutate(['/tasks-get-tasks', { campaignId }]);
+        globalMutate(['/tasks/get-tasks', { campaignId }]);
+      },
+      onError: (error, variables, optimisticData) => {
+        // Rollback by revalidating the cache
+        globalMutate(['/campaigns-get-sequence-details', { sequenceId: campaignId }]);
+        globalMutate('/campaigns/advanced');
+      },
+      invalidateQueries: [], // Don't auto-invalidate to preserve optimistic updates
+      showToast: false, // Handle manually in component
     }
   );
 };
 
 // Hook for pausing campaigns
 export const usePauseCampaign = (campaignId: string) => {
-  return useOptimisticMutation(
+  return useSWRMutation(
     '/campaigns-control',
     'POST',
-    () => (current: Campaign) => ({
-      ...current,
-      status: 'PAUSED' as const,
-      pausedAt: new Date().toISOString(),
-    }),
     {
-      invalidateQueries: [
-        `/campaigns/${campaignId}`,
-        'campaigns',
-        '/campaigns/advanced'
-      ],
+      optimisticUpdate: (variables: any) => {
+        const now = new Date().toISOString();
+        return {
+          success: true,
+          message: 'Pausing campaign...',
+          sequenceId: variables.sequenceId,
+          optimisticStatus: 'paused',
+          pausedAt: now
+        };
+      },
+      onSuccess: (data, variables, optimisticData) => {
+        // Update sequence details cache with new status
+        const sequenceKey = ['/campaigns-get-sequence-details', { sequenceId: campaignId }];
+        globalMutate(sequenceKey, (current: any) => {
+          if (current?.campaign) {
+            return {
+              ...current,
+              campaign: {
+                ...current.campaign,
+                status: 'paused',
+                pausedAt: optimisticData?.pausedAt || new Date().toISOString(),
+              }
+            };
+          }
+          return current;
+        }, false);
+
+        // Update campaigns list cache
+        globalMutate('/campaigns/advanced', (current: any) => {
+          if (current?.campaigns) {
+            return {
+              ...current,
+              campaigns: current.campaigns.map((campaign: any) =>
+                campaign.id === campaignId
+                  ? { ...campaign, status: 'paused', pausedAt: optimisticData?.pausedAt || new Date().toISOString() }
+                  : campaign
+              )
+            };
+          }
+          return current;
+        }, false);
+      },
+      onError: (error, variables, optimisticData) => {
+        // Rollback by revalidating the cache
+        globalMutate(['/campaigns-get-sequence-details', { sequenceId: campaignId }]);
+        globalMutate('/campaigns/advanced');
+      },
+      invalidateQueries: [], // Don't auto-invalidate to preserve optimistic updates
+      showToast: false, // Handle manually in component
     }
   );
 };
 
 // Hook for resuming campaigns
 export const useResumeCampaign = (campaignId: string) => {
-  return useOptimisticMutation(
+  return useSWRMutation(
     '/campaigns-control',
     'POST',
-    () => (current: Campaign) => ({
-      ...current,
-      status: 'ACTIVE' as const,
-      pausedAt: null,
-    }),
     {
-      invalidateQueries: [
-        `/campaigns/${campaignId}`,
-        'campaigns',
-        '/campaigns/advanced'
-      ],
+      optimisticUpdate: (variables: any) => {
+        return {
+          success: true,
+          message: 'Resuming campaign...',
+          sequenceId: variables.sequenceId,
+          optimisticStatus: 'sending',
+          pausedAt: null
+        };
+      },
+      onSuccess: (data, variables, optimisticData) => {
+        // Update sequence details cache with new status
+        const sequenceKey = ['/campaigns-get-sequence-details', { sequenceId: campaignId }];
+        globalMutate(sequenceKey, (current: any) => {
+          if (current?.campaign) {
+            return {
+              ...current,
+              campaign: {
+                ...current.campaign,
+                status: 'sending',
+                pausedAt: null,
+              }
+            };
+          }
+          return current;
+        }, false);
+
+        // Update campaigns list cache
+        globalMutate('/campaigns/advanced', (current: any) => {
+          if (current?.campaigns) {
+            return {
+              ...current,
+              campaigns: current.campaigns.map((campaign: any) =>
+                campaign.id === campaignId
+                  ? { ...campaign, status: 'sending', pausedAt: null }
+                  : campaign
+              )
+            };
+          }
+          return current;
+        }, false);
+      },
+      onError: (error, variables, optimisticData) => {
+        // Rollback by revalidating the cache
+        globalMutate(['/campaigns-get-sequence-details', { sequenceId: campaignId }]);
+        globalMutate('/campaigns/advanced');
+      },
+      invalidateQueries: [], // Don't auto-invalidate to preserve optimistic updates
+      showToast: false, // Handle manually in component
     }
   );
 };
 
 // Hook for stopping/cancelling campaigns
 export const useStopCampaign = (campaignId: string) => {
-  return useOptimisticMutation(
+  return useSWRMutation(
     '/campaigns-control',
     'POST',
-    () => (current: Campaign) => ({
-      ...current,
-      status: 'CANCELLED' as const,
-    }),
     {
-      invalidateQueries: [
-        `/campaigns/${campaignId}`,
-        'campaigns',
-        '/campaigns/advanced'
-      ],
+      optimisticUpdate: (variables: any) => {
+        const now = new Date().toISOString();
+        return {
+          success: true,
+          message: 'Stopping campaign...',
+          sequenceId: variables.sequenceId,
+          optimisticStatus: 'cancelled',
+          completedAt: now
+        };
+      },
+      onSuccess: (data, variables, optimisticData) => {
+        // Update sequence details cache with new status
+        const sequenceKey = ['/campaigns-get-sequence-details', { sequenceId: campaignId }];
+        globalMutate(sequenceKey, (current: any) => {
+          if (current?.campaign) {
+            return {
+              ...current,
+              campaign: {
+                ...current.campaign,
+                status: 'cancelled',
+                completedAt: optimisticData?.completedAt || new Date().toISOString(),
+              }
+            };
+          }
+          return current;
+        }, false);
+
+        // Update campaigns list cache
+        globalMutate('/campaigns/advanced', (current: any) => {
+          if (current?.campaigns) {
+            return {
+              ...current,
+              campaigns: current.campaigns.map((campaign: any) =>
+                campaign.id === campaignId
+                  ? { ...campaign, status: 'cancelled', completedAt: optimisticData?.completedAt || new Date().toISOString() }
+                  : campaign
+              )
+            };
+          }
+          return current;
+        }, false);
+      },
+      onError: (error, variables, optimisticData) => {
+        // Rollback by revalidating the cache
+        globalMutate(['/campaigns-get-sequence-details', { sequenceId: campaignId }]);
+        globalMutate('/campaigns/advanced');
+      },
+      invalidateQueries: [], // Don't auto-invalidate to preserve optimistic updates
+      showToast: false, // Handle manually in component
     }
   );
 };

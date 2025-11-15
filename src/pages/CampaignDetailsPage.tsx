@@ -174,7 +174,7 @@ const SequenceDetailsPage: React.FC = () => {
       await addProspectsToCampaign.trigger({
         campaignId: id,
         prospectIds,
-        userId: user.id || user.neonId
+        userId: user.id || user.neonUserId
       });
       showToast('Prospects added successfully', 'success');
     } catch (error) {
@@ -197,7 +197,7 @@ const SequenceDetailsPage: React.FC = () => {
           await removeProspectFromCampaign.trigger({
             campaignId: id,
             prospectId,
-            userId: user.id || user.neonId
+            userId: user.id || user.neonUserId
           });
           showToast('Prospect removed successfully', 'success');
         } catch (error) {
@@ -231,7 +231,7 @@ const SequenceDetailsPage: React.FC = () => {
       await pauseProspect.trigger({
         campaignId: id,
         prospectId,
-        userId: user.id || user.neonId,
+        userId: user.id || user.neonUserId,
         action: 'pause'
       });
       showToast('Prospect paused successfully', 'success');
@@ -250,7 +250,7 @@ const SequenceDetailsPage: React.FC = () => {
       await resumeProspect.trigger({
         campaignId: id,
         prospectId,
-        userId: user.id || user.neonId,
+        userId: user.id || user.neonUserId,
         action: 'resume'
       });
       showToast('Prospect resumed successfully', 'success');
@@ -294,7 +294,7 @@ const SequenceDetailsPage: React.FC = () => {
       } else if (localCampaign && hasChanges) {
         // For existing campaigns, use optimistic updates
         const updateData: any = {
-          userId: user?.id || user?.neonId,
+          userId: user?.id || user?.neonUserId,
           sequenceId: campaign.id
         };
 
@@ -531,7 +531,7 @@ const SequenceDetailsPage: React.FC = () => {
                             await deleteSequenceStep.trigger({
                               sequenceId: id,
                               stepId: step.id,
-                              userId: user?.id || user?.neonId || ''
+                              userId: user?.id || user?.neonUserId || ''
                             });
                             showToast('Step deleted successfully', 'success');
                           } catch (error) {
@@ -831,7 +831,7 @@ const SequenceDetailsPage: React.FC = () => {
                 await updateSequenceStep.trigger({
                   sequenceId: id,
                   stepId: editingStep.id,
-                  userId: user?.id || user?.neonId || '',
+                  userId: user?.id || user?.neonUserId || '',
                   stepData
                 });
                 showToast('Step updated successfully', 'success');
@@ -872,7 +872,7 @@ const SequenceDetailsPage: React.FC = () => {
                 // Create new step via API
                 await createSequenceStep.trigger({
                   sequenceId: id,
-                  userId: user?.id || user?.neonId || '',
+                  userId: user?.id || user?.neonUserId || '',
                   stepData: {
                     ...stepData
                   }

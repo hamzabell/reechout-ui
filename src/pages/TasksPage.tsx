@@ -1,145 +1,99 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { FiCheck, FiX, FiCalendar, FiAlertCircle, FiFilter, FiRefreshCw } from 'react-icons/fi';
-
-interface Task {
-  id: string;
-  title: string;
-  description?: string;
-  status: 'PENDING' | 'COMPLETED' | 'CANCELLED';
-  dueDate?: string;
-  campaignName: string;
-  day: number;
-  stepName?: string;
-  isOverdue: boolean;
-  daysUntilDue?: number;
-}
-
-interface TasksResponse {
-  tasks: Task[];
-  pagination: {
-    page: number;
-    limit: number;
-    total: number;
-    totalPages: number;
-  };
-}
-
-// Mock task data
-const mockTasks: Task[] = [
-  {
-    id: '1',
-    title: 'Review email copy for Welcome Series',
-    description: 'Check personalization tokens and grammar',
-    status: 'PENDING',
-    dueDate: '2024-01-20T00:00:00Z',
-    campaignName: 'Welcome Series',
-    day: 2,
-    stepName: 'Content Review',
-    isOverdue: false,
-    daysUntilDue: 2,
-  },
-  {
-    id: '2',
-    title: 'Approve target audience for Product Launch',
-    description: 'Validate segmentation criteria',
-    status: 'COMPLETED',
-    dueDate: '2024-01-18T00:00:00Z',
-    campaignName: 'Product Launch',
-    day: 1,
-    stepName: 'Audience Selection',
-    isOverdue: false,
-    daysUntilDue: 0,
-  },
-  {
-    id: '3',
-    title: 'Schedule Re-engagement Sequence',
-    description: 'Set delivery dates and times',
-    status: 'PENDING',
-    dueDate: '2024-01-16T00:00:00Z',
-    campaignName: 'Re-engagement Sequence',
-    day: 4,
-    stepName: 'Scheduling',
-    isOverdue: true,
-    daysUntilDue: -1,
-  },
-  {
-    id: '4',
-    title: 'Test email templates',
-    description: 'Check rendering on different devices',
-    status: 'PENDING',
-    dueDate: '2024-01-22T00:00:00Z',
-    campaignName: 'Newsletter January',
-    day: 3,
-    stepName: 'Template Testing',
-    isOverdue: false,
-    daysUntilDue: 4,
-  },
-  {
-    id: '5',
-    title: 'Review analytics for Holiday Promotion',
-    description: 'Analyze open rates and conversions',
-    status: 'CANCELLED',
-    dueDate: '2024-01-17T00:00:00Z',
-    campaignName: 'Holiday Promotion',
-    day: 5,
-    stepName: 'Performance Review',
-    isOverdue: false,
-    daysUntilDue: -1,
-  },
-  {
-    id: '6',
-    title: 'Update prospect list for Q1 sequences',
-    description: 'Add new leads and remove inactive ones',
-    status: 'PENDING',
-    dueDate: '2024-01-25T00:00:00Z',
-    campaignName: 'Q1 Planning',
-    day: 1,
-    stepName: 'List Management',
-    isOverdue: false,
-    daysUntilDue: 7,
-  },
-];
+import { Task, TaskStatus } from '../types';
+import { useTasks, useCompleteTask, useCancelTask, useReopenTask } from '../hooks/useTasks';
+import { useNeon } from '../providers/NeonProvider';
+import { useToast } from '../hooks/useToast';
 
 const TasksPage: React.FC = () => {
-  const [filter, setFilter] = useState<string>('all');
+  const { authState } = useNeon();
+  const { showToast } = useToast();
+  const [filter, setFilter] = useState<TaskStatus | 'all'>('all');
   const [page, setPage] = useState(1);
   const limit = 20;
 
-  // Filter mock tasks based on selected filter
-  const filteredTasks = filter === 'all'
-    ? mockTasks
-    : mockTasks.filter(task => task.status === filter);
+  const userId = authState.user?.id || authState.user?.neonUserId;
 
-  // Paginate filtered tasks
-  const totalTasks = filteredTasks.length;
-  const totalPages = Math.ceil(totalTasks / limit);
-  const startIndex = (page - 1) * limit;
-  const paginatedTasks = filteredTasks.slice(startIndex, startIndex + limit);
+  console.log('TasksPage - Full authState.user:', authState.user);
+  console.log('TasksPage - userId resolution:', {
+    id: authState.user?.id,
+    neonUserId: authState.user?.neonUserId,
+    selectedUserId: userId
+  });
 
-  // Create mock tasksData object
-  const tasksData: TasksResponse = {
-    tasks: paginatedTasks,
-    pagination: {
-      page,
-      limit,
-      total: totalTasks,
-      totalPages,
-    },
+  console.log('TasksPage - userId:', userId);
+  console.log('TasksPage - filter:', filter);
+
+  // Get tasks hook
+  const { tasks, pagination, isLoading, error, mutate } = useTasks(userId ? {
+    userId: userId,
+    status: filter === 'all' ? undefined : filter,
+    limit,
+    offset: (page - 1) * limit,
+    sortBy: 'dueDate',
+    sortOrder: 'asc'
+  } : undefined);
+
+  console.log('TasksPage - hook state:', {
+    tasksCount: tasks.length,
+    isLoading,
+    error: error?.message,
+    tasks
+  });
+
+  // Task action hooks
+  const { trigger: completeTask, isMutating: isCompleting } = useCompleteTask();
+  const { trigger: cancelTask, isMutating: isCancelling } = useCancelTask();
+  const { trigger: reopenTask, isMutating: isReopening } = useReopenTask();
+
+  const handleCompleteTask = async (taskId: string) => {
+    if (!userId) return;
+
+    try {
+      await completeTask(taskId, userId);
+      showToast('Task completed successfully', 'success');
+    } catch (error) {
+      showToast('Failed to complete task', 'error');
+      // Refresh data to ensure consistency after error
+      mutate();
+    }
   };
 
-  const isLoading = false;
-  const error = null;
+  const handleUncompleteTask = async (taskId: string) => {
+    if (!userId) return;
 
-  const handleCompleteTask = (taskId: string) => {
-    // Frontend-only - just show an alert
-    alert('Task marked as complete (demo mode)');
+    try {
+      await reopenTask(taskId, userId);
+      showToast('Task reopened', 'success');
+    } catch (error) {
+      showToast('Failed to reopen task', 'error');
+      // Refresh data to ensure consistency after error
+      mutate();
+    }
   };
 
-  const handleUncompleteTask = (taskId: string) => {
-    // Frontend-only - just show an alert
-    alert('Task marked as incomplete (demo mode)');
+  const handleCancelTask = async (taskId: string) => {
+    if (!userId) return;
+
+    try {
+      await cancelTask(taskId, userId);
+      showToast('Task cancelled', 'success');
+    } catch (error) {
+      showToast('Failed to cancel task', 'error');
+      // Refresh data to ensure consistency after error
+      mutate();
+    }
   };
+
+  const handleRefresh = () => {
+    mutate();
+  };
+
+  // Reset page when filter changes
+  useEffect(() => {
+    setPage(1);
+  }, [filter]);
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -189,24 +143,16 @@ const TasksPage: React.FC = () => {
   };
 
   return (
-    <motion.div
-      initial="hidden"
-      animate="visible"
-      variants={containerVariants}
-      className="p-6"
-    >
+    <div className="p-6">
 
       {/* Filters */}
-      <motion.div
-        variants={itemVariants}
-        className="mb-6 flex flex-wrap gap-4 items-center"
-      >
+      <div className="mb-6 flex flex-wrap gap-4 items-center">
         <div className="flex items-center gap-2">
           <FiFilter className="text-gray-500" />
           <span className="text-sm font-medium text-gray-700">Filter:</span>
         </div>
         <div className="flex gap-2">
-          {['all', 'PENDING', 'COMPLETED', 'CANCELLED'].map((filterOption) => (
+          {(['all', 'PENDING', 'COMPLETED', 'CANCELLED'] as const).map((filterOption) => (
             <button
               key={filterOption}
               onClick={() => setFilter(filterOption)}
@@ -221,13 +167,13 @@ const TasksPage: React.FC = () => {
           ))}
         </div>
         <button
-          onClick={() => window.location.reload()}
+          onClick={handleRefresh}
           className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
-          title="Refresh (Demo)"
+          title="Refresh tasks"
         >
-          <FiRefreshCw className="w-4 h-4" />
+          <FiRefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
         </button>
-      </motion.div>
+      </div>
 
       {/* Tasks List */}
       {isLoading ? (
@@ -240,20 +186,19 @@ const TasksPage: React.FC = () => {
           <FiAlertCircle className="text-4xl text-red-500 mx-auto mb-4" />
           <p className="text-red-600">Failed to load tasks</p>
         </div>
-      ) : tasksData?.tasks.length === 0 ? (
+      ) : tasks.length === 0 ? (
         <div className="text-center py-12">
           <FiCheck className="text-4xl text-gray-400 mx-auto mb-4" />
           <p className="text-gray-500">No tasks found</p>
+          {filter !== 'all' && (
+            <p className="text-sm text-gray-400 mt-2">Try changing the filter or create tasks from campaign sequences</p>
+          )}
         </div>
       ) : (
-        <motion.div
-          variants={containerVariants}
-          className="space-y-4"
-        >
-          {tasksData?.tasks.map((task: Task) => (
-            <motion.div
+        <div className="space-y-4">
+          {tasks.map((task: Task) => (
+            <div
               key={task.id}
-              variants={itemVariants}
               className={`bg-white rounded-lg shadow-sm border p-6 ${
                 task.isOverdue ? 'border-red-200 bg-red-50' : 'border-gray-200'
               }`}
@@ -302,36 +247,55 @@ const TasksPage: React.FC = () => {
                 {/* Action Buttons */}
                 <div className="flex items-center gap-2 ml-4">
                   {task.status === 'PENDING' && (
-                    <button
-                      onClick={() => handleCompleteTask(task.id)}
-                      className="p-2 text-green-600 hover:bg-green-100 rounded-lg transition-colors"
-                      title="Mark as complete (Demo)"
-                    >
-                      <FiCheck className="w-5 h-5" />
-                    </button>
+                    <>
+                      <button
+                        onClick={() => handleCompleteTask(task.id)}
+                        disabled={isCompleting}
+                        className="p-2 text-green-600 hover:bg-green-100 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        title="Mark as complete"
+                      >
+                        <FiCheck className="w-5 h-5" />
+                      </button>
+                      <button
+                        onClick={() => handleCancelTask(task.id)}
+                        disabled={isCancelling}
+                        className="p-2 text-red-600 hover:bg-red-100 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        title="Cancel task"
+                      >
+                        <FiX className="w-5 h-5" />
+                      </button>
+                    </>
                   )}
                   {task.status === 'COMPLETED' && (
                     <button
                       onClick={() => handleUncompleteTask(task.id)}
-                      className="p-2 text-yellow-600 hover:bg-yellow-100 rounded-lg transition-colors"
-                      title="Mark as incomplete (Demo)"
+                      disabled={isReopening}
+                      className="p-2 text-yellow-600 hover:bg-yellow-100 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                      title="Reopen task"
                     >
                       <FiX className="w-5 h-5" />
                     </button>
                   )}
+                  {task.status === 'CANCELLED' && (
+                    <button
+                      onClick={() => handleUncompleteTask(task.id)}
+                      disabled={isReopening}
+                      className="p-2 text-blue-600 hover:bg-blue-100 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                      title="Reopen task"
+                    >
+                      <FiRefreshCw className="w-5 h-5" />
+                    </button>
+                  )}
                 </div>
               </div>
-            </motion.div>
+            </div>
           ))}
-        </motion.div>
+        </div>
       )}
 
       {/* Pagination */}
-      {tasksData && tasksData.pagination.totalPages > 1 && (
-        <motion.div
-          variants={itemVariants}
-          className="mt-8 flex justify-center items-center gap-4"
-        >
+      {pagination && pagination.totalPages > 1 && (
+        <div className="mt-8 flex justify-center items-center gap-4">
           <button
             onClick={() => setPage(page - 1)}
             disabled={page === 1}
@@ -340,18 +304,26 @@ const TasksPage: React.FC = () => {
             Previous
           </button>
           <span className="text-sm text-gray-600">
-            Page {page} of {tasksData.pagination.totalPages}
+            Page {page} of {pagination.totalPages} ({pagination.total} tasks)
           </span>
           <button
             onClick={() => setPage(page + 1)}
-            disabled={page === tasksData.pagination.totalPages}
+            disabled={page === pagination.totalPages}
             className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             Next
           </button>
-        </motion.div>
+        </div>
       )}
-    </motion.div>
+
+      {/* No User State */}
+      {!userId && !isLoading && (
+        <div className="text-center py-12">
+          <FiAlertCircle className="text-4xl text-yellow-500 mx-auto mb-4" />
+          <p className="text-gray-600">Please log in to view your tasks</p>
+        </div>
+      )}
+    </div>
   );
 };
 

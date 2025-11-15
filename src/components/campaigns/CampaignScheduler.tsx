@@ -120,7 +120,7 @@ const CampaignScheduler: React.FC<CampaignSchedulerProps> = ({
         sequenceId: campaign.id,
         scheduledDate: scheduledDateTime.toISOString(),
         timezone,
-        userId: user.id || user.neonId,
+        userId: user.id || user.neonUserId,
         sendTime: scheduledTime
       });
 

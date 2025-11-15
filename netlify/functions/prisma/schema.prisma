@@ -92,7 +92,6 @@ model Sequence {
   startedAt         DateTime?
   pausedAt          DateTime?
   completedAt       DateTime?
-  scheduledAt       DateTime?
   createdAt         DateTime           @default(now())
   updatedAt         DateTime           @updatedAt
   campaignProspects CampaignProspect[]
@@ -137,7 +136,6 @@ model StepTaskAction {
   stepId                  String       @unique
   taskTitle               String
   taskDescription         String?
-  taskType                TaskType     @default(CUSTOM)
   enableEmailNotification Boolean      @default(false)
   createdAt               DateTime     @default(now())
   updatedAt               DateTime     @updatedAt
@@ -235,7 +233,6 @@ enum SequenceStatus {
   PAUSED
   COMPLETED
   CANCELLED
-  SCHEDULED
 }
 
 enum ProspectStatus {
@@ -268,12 +265,4 @@ enum TaskStatus {
   PENDING
   COMPLETED
   CANCELLED
-}
-
-enum TaskType {
-  LINKEDIN
-  WHATSAPP
-  CALL
-  EMAIL
-  CUSTOM
 }

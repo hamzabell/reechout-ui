@@ -62,11 +62,17 @@ exports.handler = async (event, context) => {
       }
     });
 
+    // Check for sent emails using a more reliable query
+    const campaignProspects = await prisma.campaignProspect.findMany({
+      where: { campaignId: campaignId },
+      select: { id: true }
+    });
+
+    const prospectIds = campaignProspects.map(cp => cp.id);
+
     const sentEmails = await prisma.personalizedEmail.count({
       where: {
-        campaignProspect: {
-          campaignId: campaignId
-        },
+        campaignProspectId: { in: prospectIds },
         status: 'SENT'
       }
     });
@@ -76,7 +82,15 @@ exports.handler = async (event, context) => {
       return createErrorResponse('Cannot delete campaign that has sent emails', 400, event);
     }
 
-    // Delete campaign (cascade will handle related records)
+    // Delete associated tasks and task assignments first (explicit cascade)
+    console.log(`Deleting tasks for campaign ${campaignId}...`);
+    const deletedTasks = await prisma.task.deleteMany({
+      where: { campaignId: campaignId }
+    });
+    console.log(`Deleted ${deletedTasks.count} tasks associated with campaign ${campaignId}`);
+
+    // Delete the campaign (Prisma cascade will handle other related records)
+    console.log(`Deleting campaign ${campaignId}...`);
     const deletedCampaign = await prisma.sequence.delete({
       where: { id: campaignId },
       include: {
@@ -96,12 +110,19 @@ exports.handler = async (event, context) => {
         name: deletedCampaign.name,
         deletedAt: new Date().toISOString()
       },
-      message: 'Campaign deleted successfully'
+      deletedTasksCount: deletedTasks.count,
+      message: `Campaign deleted successfully (${deletedTasks.count} tasks deleted)`
     }, 200, event);
 
   } catch (error) {
     console.error('Error deleting campaign:', error);
-    return createErrorResponse('Internal server error', 500, event);
+    console.error('Error details:', {
+      message: error.message,
+      stack: error.stack,
+      code: error.code,
+      meta: error.meta
+    });
+    return createErrorResponse(`Internal server error: ${error.message}`, 500, event);
   } finally {
     // Disconnect Prisma client in serverless environment
     await prisma.$disconnect();

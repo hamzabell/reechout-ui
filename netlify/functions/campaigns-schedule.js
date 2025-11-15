@@ -1,5 +1,5 @@
 const { PrismaClient } = require('@prisma/client');
-const cors = require('./utils/cors');
+const { createCorsResponse, createSuccessResponse, createErrorResponse } = require('./utils/cors');
 
 const prisma = new PrismaClient();
 
@@ -84,54 +84,33 @@ const convertToUTC = (dateString, timezone) => {
 exports.handler = async (event, context) => {
   // Handle CORS
   if (event.httpMethod === 'OPTIONS') {
-    return cors({
-      statusCode: 200,
-      body: ''
-    });
+    return createCorsResponse(event);
   }
 
   try {
     // Only allow POST requests
     if (event.httpMethod !== 'POST') {
-      return cors({
-        statusCode: 405,
-        body: JSON.stringify({ error: 'Method not allowed' })
-      });
+      return createErrorResponse('Method not allowed', 405, event);
     }
 
     // Parse request body
     const { sequenceId, scheduledDate, timezone, userId, dailyLimit, sendTime } = JSON.parse(event.body);
 
     if (!sequenceId || !scheduledDate || !timezone || !userId) {
-      return cors({
-        statusCode: 400,
-        body: JSON.stringify({ 
-          error: 'Missing required fields: sequenceId, scheduledDate, timezone, userId' 
-        })
-      });
+      return createErrorResponse('Missing required fields: sequenceId, scheduledDate, timezone, userId', 400, event);
     }
 
     // Validate timezone
     if (!isValidTimezone(timezone)) {
-      return cors({
-        statusCode: 400,
-        body: JSON.stringify({ 
-          error: 'Invalid timezone. Please select a valid timezone from the list.' 
-        })
-      });
+      return createErrorResponse('Invalid timezone. Please select a valid timezone from the list.', 400, event);
     }
 
     // Validate scheduled date is in the future
     const scheduledUTC = convertToUTC(scheduledDate, timezone);
     const now = new Date();
-    
+
     if (scheduledUTC <= now) {
-      return cors({
-        statusCode: 400,
-        body: JSON.stringify({ 
-          error: 'Scheduled date must be in the future' 
-        })
-      });
+      return createErrorResponse('Scheduled date must be in the future', 400, event);
     }
 
     // Get current campaign
@@ -141,63 +120,42 @@ exports.handler = async (event, context) => {
         creator: {
           select: {
             id: true,
-            neonId: true
+            neonUserId: true
           }
         }
       }
     });
 
     if (!campaign) {
-      return cors({
-        statusCode: 404,
-        body: JSON.stringify({ error: 'Campaign not found' })
-      });
+      return createErrorResponse('Campaign not found', 404, event);
     }
 
     // Verify ownership
-    if (campaign.createdBy !== userId && campaign.creator.neonId !== userId) {
-      return cors({
-        statusCode: 403,
-        body: JSON.stringify({ error: 'Not authorized to schedule this campaign' })
-      });
+    if (campaign.createdBy !== userId && campaign.creator.neonUserId !== userId) {
+      return createErrorResponse('Not authorized to schedule this campaign', 403, event);
     }
 
-    // Check if campaign can be scheduled (must be in DRAFT status)
-    if (campaign.status !== 'DRAFT') {
-      return cors({
-        statusCode: 400,
-        body: JSON.stringify({ 
-          error: 'Only draft campaigns can be scheduled' 
-        })
-      });
+    // Check if campaign can be scheduled (must be in DRAFT or SCHEDULED status)
+    if (campaign.status !== 'DRAFT' && campaign.status !== 'SCHEDULED') {
+      return createErrorResponse('Only draft or scheduled campaigns can be scheduled', 400, event);
     }
 
     // Validate optional parameters
     if (dailyLimit && (dailyLimit < 1 || dailyLimit > 1000)) {
-      return cors({
-        statusCode: 400,
-        body: JSON.stringify({ 
-          error: 'Daily limit must be between 1 and 1000' 
-        })
-      });
+      return createErrorResponse('Daily limit must be between 1 and 1000', 400, event);
     }
 
     if (sendTime) {
       const timeRegex = /^([01]?[0-9]|2[0-3]):[0-5][0-9]$/;
       if (!timeRegex.test(sendTime)) {
-        return cors({
-          statusCode: 400,
-          body: JSON.stringify({ 
-            error: 'Send time must be in HH:MM format (24-hour)' 
-          })
-        });
+        return createErrorResponse('Send time must be in HH:MM format (24-hour)', 400, event);
       }
     }
 
     // Update campaign with scheduling information
     const updateData = {
-      status: 'ACTIVE', // Set to active but will start processing at scheduled time
-      startedAt: scheduledUTC,
+      status: 'SCHEDULED', // Set to scheduled and will start processing at scheduled time
+      scheduledAt: scheduledUTC,
       updatedAt: new Date()
     };
 
@@ -241,7 +199,8 @@ exports.handler = async (event, context) => {
         description: updatedCampaign.description,
         status: updatedCampaign.status,
         createdAt: updatedCampaign.createdAt.toISOString(),
-        startedAt: updatedCampaign.startedAt.toISOString(),
+        startedAt: updatedCampaign.startedAt?.toISOString(),
+        scheduledAt: updatedCampaign.scheduledAt.toISOString(),
         pausedAt: updatedCampaign.pausedAt?.toISOString(),
         completedAt: updatedCampaign.completedAt?.toISOString(),
         updatedAt: updatedCampaign.updatedAt.toISOString(),
@@ -265,33 +224,17 @@ exports.handler = async (event, context) => {
       }
     };
 
-    return cors({
-      statusCode: 200,
-      body: JSON.stringify(response)
-    });
+    return createSuccessResponse(response, 200, event);
 
   } catch (error) {
     console.error('Campaign scheduling error:', error);
-    
-    return cors({
-      statusCode: 500,
-      body: JSON.stringify({ 
-        error: 'Internal server error',
-        message: error.message 
-      })
-    });
+
+    return createErrorResponse(
+      `Internal server error: ${error.message}`,
+      500,
+      event
+    );
   } finally {
     await prisma.$disconnect();
   }
-};
-
-// Helper endpoint to get available timezones
-exports.getTimezones = async () => {
-  return cors({
-    statusCode: 200,
-    body: JSON.stringify({
-      timezones: COMMON_TIMEZONES,
-      currentTime: new Date().toISOString()
-    })
-  });
 };

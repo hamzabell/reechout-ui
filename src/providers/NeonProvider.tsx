@@ -121,7 +121,7 @@ export const NeonProvider: React.FC<NeonProviderProps> = ({ children }) => {
 
       const mappedUser: User = {
         id: userProfile.id,
-        neonId: neonUser.id,
+        neonUserId: neonUser.id,
         name: userProfile.name || neonUser.displayName || "",
         email: userProfile.email || neonUser.primaryEmail || "",
         company: userProfile.company || undefined,
@@ -140,7 +140,7 @@ export const NeonProvider: React.FC<NeonProviderProps> = ({ children }) => {
       // Return a minimal user object based on neonUser data if database operations fail
       return {
         id: neonUser.id,
-        neonId: neonUser.id,
+        neonUserId: neonUser.id,
         name: neonUser.displayName || neonUser.name || "",
         email: neonUser.primaryEmail || neonUser.email || "",
         company: undefined,
@@ -385,7 +385,7 @@ export const NeonProvider: React.FC<NeonProviderProps> = ({ children }) => {
   };
 
   const updateUserProfileHandler = async (updates: Partial<User>): Promise<User> => {
-    if (!authState.user?.neonId) {
+    if (!authState.user?.neonUserId) {
       throw new Error("User not authenticated");
     }
 
@@ -402,7 +402,7 @@ export const NeonProvider: React.FC<NeonProviderProps> = ({ children }) => {
 
     try {
       // Call the API to update the profile
-      await updateUserProfile(authState.user.neonId, updates);
+      await updateUserProfile(authState.user.neonUserId, updates);
       
       // Update was successful, refresh user data to ensure consistency
       try {

@@ -1,7 +1,7 @@
 // Base API configuration - use the same configuration as src/lib/api.ts
 const API_BASE_URL = process.env.REACT_APP_API_BASE_URL ||
   (process.env.NODE_ENV === 'development'
-    ? 'http://localhost:3002'
+    ? 'http://localhost:8888'
     : 'https://your-app.netlify.app');
 
 // Get auth token from localStorage
@@ -19,7 +19,7 @@ const getUserId = (): string | null => {
     if (userData) {
       try {
         const user = JSON.parse(userData);
-        return user.id || user.neonId;
+        return user.id || user.neonUserId;
       } catch (e) {
         console.error('Failed to parse user data:', e);
       }
@@ -39,6 +39,7 @@ async function apiRequest(endpoint: string, options: RequestInit = {}): Promise<
                            endpoint.startsWith('/campaigns/') ||
                            endpoint.startsWith('/campaigns-') ||
                            endpoint.startsWith('/overview-') ||
+                           endpoint.startsWith('/tasks') ||
                            endpoint === '/campaigns-delete-sequence-step';
 
   // Map endpoint to function name using switch statement for clarity
@@ -90,7 +91,15 @@ async function apiRequest(endpoint: string, options: RequestInit = {}): Promise<
     case '/prospects-get-prospect':
       functionEndpoint = '/prospects-get-prospect';
       break;
-    
+
+    // Tasks endpoints
+    case '/tasks-get-tasks':
+      functionEndpoint = '/tasks-get-tasks';
+      break;
+    case '/tasks-update-task':
+      functionEndpoint = '/tasks-update-task';
+      break;
+
     // Generic campaign update handlers
     default:
       // Handle campaign endpoints that need special mapping
@@ -229,11 +238,11 @@ export const API_ENDPOINTS = {
   UPDATE_SETTINGS: '/api/users/update-settings',
 
   // Tasks
-  GET_TASKS: '/tasks',
-  GET_TASK: '/tasks',
-  CREATE_TASK: '/tasks',
-  UPDATE_TASK: '/tasks',
-  DELETE_TASK: '/tasks',
+  GET_TASKS: '/tasks-get-tasks',
+  GET_TASK: '/tasks-get-tasks',
+  CREATE_TASK: '/tasks-update-task',
+  UPDATE_TASK: '/tasks-update-task',
+  DELETE_TASK: '/tasks-update-task',
 
   // Overview
   GET_STATS: '/overview-get-stats',

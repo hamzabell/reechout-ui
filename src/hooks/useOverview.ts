@@ -10,7 +10,7 @@ const getUserId = (): string | null => {
     if (userData) {
       try {
         const user = JSON.parse(userData);
-        return user.id || user.neonId;
+        return user.id || user.neonUserId;
       } catch (e) {
         console.error('Failed to parse user data:', e);
       }

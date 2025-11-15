@@ -1,6 +1,6 @@
 export interface User {
   id: string;
-  neonId: string;
+  neonUserId: string;
   name: string;
   email: string;
   company?: string;
@@ -57,11 +57,13 @@ export interface Prospect {
   };
 }
 
+// Legacy Campaign interface (for backward compatibility)
+// Use the new Sequence interface for new development
 export interface Campaign {
   id: string;
   name: string;
   description?: string;
-  status: 'draft' | 'pending_approval' | 'approved' | 'rejected' | 'scheduled' | 'sending' | 'paused' | 'completed';
+  status: 'draft' | 'pending_approval' | 'approved' | 'rejected' | 'scheduled' | 'sending' | 'paused' | 'completed' | 'cancelled';
   sent: number;
   opens: number;
   replies: number;
@@ -69,6 +71,9 @@ export interface Campaign {
   startDate?: string;
   scheduledDate?: string;
   completedDate?: string;
+  startedAt?: string;
+  scheduledAt?: string;
+  pausedAt?: string;
   prospects: string[]; // Prospect IDs instead of full prospect objects
   templateId?: string;
   settings: CampaignSettings;
@@ -79,6 +84,9 @@ export interface Campaign {
   approvedAt?: string;
   rejectionReason?: string;
 }
+
+// Type alias for clarity - use Sequence for new code
+export type CampaignSequence = Sequence;
 
 export interface CampaignSettings {
   sendImmediately?: boolean;
@@ -336,6 +344,107 @@ export interface BulkApprovalRequest {
   requestedChanges?: string[];
 }
 
+// Campaign/Sequence Status Types (matching backend)
+export type SequenceStatus = 'DRAFT' | 'ACTIVE' | 'PAUSED' | 'COMPLETED' | 'CANCELLED' | 'SCHEDULED';
+
+// Sequence interface (matches backend Prisma model)
+export interface Sequence {
+  id: string;
+  name: string;
+  description?: string;
+  status: SequenceStatus;
+  createdBy: string;
+  startedAt?: string;
+  pausedAt?: string;
+  completedAt?: string;
+  scheduledAt?: string;
+  createdAt: string;
+  updatedAt: string;
+  creator?: {
+    id: string;
+    name: string;
+    email: string;
+  };
+  prospects?: CampaignProspect[];
+  steps?: SequenceStep[];
+  _count?: {
+    campaignProspects?: number;
+    steps?: number;
+  };
+}
+
+export interface CampaignProspect {
+  id: string;
+  campaignId: string;
+  prospectId: string;
+  status: ProspectStatus;
+  addedAt: string;
+  pausedAt?: string;
+  prospect?: Prospect;
+  personalizedEmails?: PersonalizedEmail[];
+}
+
+export interface SequenceStep {
+  id: string;
+  sequenceId: string;
+  day: number;
+  createdAt: string;
+  updatedAt: string;
+  emailAction?: StepEmailAction;
+  taskAction?: StepTaskAction;
+}
+
+export interface StepEmailAction {
+  id: string;
+  stepId: string;
+  templateId?: string;
+  customSubject?: string;
+  customBody?: string;
+  enablePersonalization: boolean;
+  createdAt: string;
+  updatedAt: string;
+  template?: EmailTemplate;
+}
+
+export interface StepTaskAction {
+  id: string;
+  stepId: string;
+  taskTitle: string;
+  taskDescription?: string;
+  enableEmailNotification: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PersonalizedEmail {
+  id: string;
+  campaignProspectId: string;
+  stepEmailActionId: string;
+  subject: string;
+  body: string;
+  status: EmailStatus;
+  scheduledFor?: string;
+  sentAt?: string;
+  openedAt?: string;
+  repliedAt?: string;
+  errorMessage?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface EmailTemplate {
+  id: string;
+  name: string;
+  subject: string;
+  body: string;
+  variables: string[];
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type EmailStatus = 'PENDING' | 'SENT' | 'OPENED' | 'REPLIED' | 'BOUNCED' | 'FAILED';
+
 export type TabType = 'overview' | 'campaigns' | 'prospects' | 'templates' | 'tasks' | 'settings';
 
 // Overview Stats Types
@@ -369,4 +478,90 @@ export interface OverviewData {
   stats: OverviewStats;
   recentCampaigns: Campaign[];
   recentProspects: RecentProspect[];
+}
+
+// Task Management Types
+export type TaskStatus = 'PENDING' | 'COMPLETED' | 'CANCELLED';
+
+export type TaskType = 'LINKEDIN' | 'WHATSAPP' | 'CALL' | 'EMAIL' | 'CUSTOM';
+
+export interface StepTaskAction {
+  id: string;
+  stepId: string;
+  taskTitle: string;
+  taskDescription?: string;
+  taskType: TaskType;
+  enableEmailNotification: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface Task {
+  id: string;
+  stepTaskActionId: string;
+  campaignId: string;
+  dueDate?: string;
+  status: TaskStatus;
+  completedAt?: string;
+  createdAt: string;
+  updatedAt: string;
+  stepTaskAction?: StepTaskAction;
+  assignments?: TaskAssignment[];
+  // Derived fields for frontend convenience
+  title?: string;
+  description?: string;
+  campaignName?: string;
+  day?: number;
+  stepName?: string;
+  isOverdue?: boolean;
+  daysUntilDue?: number;
+}
+
+export interface TaskAssignment {
+  id: string;
+  taskId: string;
+  userId: string;
+  assignedAt: string;
+  task?: Task;
+  user?: {
+    id: string;
+    name: string;
+    email: string;
+  };
+}
+
+export interface TaskFilters {
+  status?: TaskStatus;
+  search?: string;
+  campaignId?: string;
+  assignedTo?: string;
+  dueBefore?: string;
+  dueAfter?: string;
+  sortBy?: 'createdAt' | 'dueDate' | 'status';
+  sortOrder?: 'asc' | 'desc';
+  limit?: number;
+  offset?: number;
+}
+
+export interface TasksResponse {
+  tasks: Task[];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+  };
+}
+
+export interface TaskUpdateData {
+  status: TaskStatus;
+  completedAt?: string;
+}
+
+export interface TaskStats {
+  total: number;
+  pending: number;
+  completed: number;
+  cancelled: number;
+  overdue: number;
 }
