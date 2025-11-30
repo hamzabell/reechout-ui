@@ -1,7 +1,7 @@
 // Base API configuration - use the same configuration as src/lib/api.ts
 const API_BASE_URL = process.env.REACT_APP_API_BASE_URL ||
   (process.env.NODE_ENV === 'development'
-    ? 'http://localhost:8888'
+    ? 'http://localhost:9999'
     : 'https://your-app.netlify.app');
 
 // Get auth token from localStorage
@@ -40,7 +40,9 @@ async function apiRequest(endpoint: string, options: RequestInit = {}): Promise<
                            endpoint.startsWith('/campaigns-') ||
                            endpoint.startsWith('/overview-') ||
                            endpoint.startsWith('/tasks') ||
-                           endpoint === '/campaigns-delete-sequence-step';
+                           endpoint.startsWith('/smtp-config') ||
+                           endpoint === '/campaigns-delete-sequence-step' ||
+                           endpoint === '/send-email';
 
   // Map endpoint to function name using switch statement for clarity
   let functionEndpoint = endpoint;
@@ -98,6 +100,14 @@ async function apiRequest(endpoint: string, options: RequestInit = {}): Promise<
       break;
     case '/tasks-update-task':
       functionEndpoint = '/tasks-update-task';
+      break;
+
+    // SMTP endpoints
+    case '/smtp-config':
+      functionEndpoint = '/smtp-config';
+      break;
+    case '/smtp-config/test':
+      functionEndpoint = '/smtp-config/test';
       break;
 
     // Generic campaign update handlers
@@ -222,8 +232,14 @@ export const API_ENDPOINTS = {
   DELETE_PROSPECT: '/prospects',
 
   // Email
-  SEND_EMAIL: '/api/email/send-email',
+  SEND_EMAIL: '/send-email',
   GET_EMAIL_LOGS: '/api/email/get-email-logs',
+
+  // SMTP Configuration
+  GET_SMTP_CONFIG: '/smtp-config',
+  SAVE_SMTP_CONFIG: '/smtp-config',
+  TEST_SMTP_CONFIG: '/smtp-config/test',
+  DELETE_SMTP_CONFIG: '/smtp-config',
 
   // Analytics
   GET_ANALYTICS: '/api/analytics/get-analytics',

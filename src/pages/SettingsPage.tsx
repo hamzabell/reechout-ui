@@ -2,7 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import { useNeon } from '../providers/NeonProvider';
 import { useToast } from '../hooks/useToast';
+import { useModalWithAutoId } from '../providers/ModalProvider';
+import { useConfirm } from '../hooks/useConfirm';
 import Button from '../components/Button';
+import SmtpConfigModal from '../components/SmtpConfigModal';
+import { smtpService, SmtpConfig } from '../services/smtpService';
 
 interface UserSettings {
   name: string;
@@ -17,6 +21,8 @@ const SettingsPage: React.FC = () => {
   const { user } = useAuth();
   const { updateUserProfile } = useNeon();
   const { showToast } = useToast();
+  const { openModal } = useModalWithAutoId();
+  const { confirm, confirmDanger } = useConfirm();
 
   const [activeTab, setActiveTab] = useState<'profile' | 'notifications' | 'security'>('profile');
   const [saving, setSaving] = useState(false);
@@ -29,9 +35,8 @@ const SettingsPage: React.FC = () => {
     emailNotifications: true,
   });
 
-  
-
-  const [connectingEmail, setConnectingEmail] = useState(false);
+  const [smtpConfig, setSmtpConfig] = useState<SmtpConfig | null>(null);
+  const [loadingSmtpConfig, setLoadingSmtpConfig] = useState(false);
 
   // Sync settings with current user data (important for optimistic updates)
   useEffect(() => {
@@ -45,6 +50,34 @@ const SettingsPage: React.FC = () => {
       }));
     }
   }, [user]);
+
+  // Load SMTP configuration on component mount
+  useEffect(() => {
+    loadSmtpConfig();
+  }, []);
+
+  const loadSmtpConfig = async () => {
+    setLoadingSmtpConfig(true);
+    try {
+      const config = await smtpService.getSmtpConfig();
+      setSmtpConfig(config);
+    } catch (error) {
+      console.error('Error loading SMTP config:', error);
+      // Don't show error for missing config, just log it
+    } finally {
+      setLoadingSmtpConfig(false);
+    }
+  };
+
+  const handleOpenSmtpModal = () => {
+    openModal(SmtpConfigModal, {
+      existingConfig: smtpConfig,
+      onSave: async (config: SmtpConfig & { password?: string }) => {
+        await smtpService.saveSmtpConfig(config);
+        await loadSmtpConfig(); // Reload the config after saving
+      }
+    });
+  };
 
   const handleSaveProfile = async () => {
     if (!user) {
@@ -73,35 +106,7 @@ const SettingsPage: React.FC = () => {
     }
   };
 
-  const handleConnectEmail = async () => {
-    setConnectingEmail(true);
-    try {
-      // Simulate email connection process
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      const mockEmail = `user${Math.floor(Math.random() * 1000)}@gmail.com`;
-      setSettings({ ...settings, connectedEmail: mockEmail });
-      showToast(`Successfully connected ${mockEmail}!`, 'success');
-    } catch (error) {
-      showToast('Failed to connect email account', 'error');
-    } finally {
-      setConnectingEmail(false);
-    }
-  };
-
-  const handleDisconnectEmail = async () => {
-    setSaving(true);
-    try {
-      // Simulate email disconnection process
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      setSettings({ ...settings, connectedEmail: undefined });
-      showToast('Email account disconnected successfully', 'success');
-    } catch (error) {
-      showToast('Failed to disconnect email account', 'error');
-    } finally {
-      setSaving(false);
-    }
-  };
-
+  
   const tabs = [
     { id: 'profile', label: 'Profile', icon: 'fas fa-user' },
     { id: 'notifications', label: 'Notifications', icon: 'fas fa-bell' },
@@ -207,11 +212,16 @@ const SettingsPage: React.FC = () => {
                 </div>
               </div>
 
-              {/* Email Account Connection */}
+              {/* SMTP Configuration */}
               <div className="border-t border-border pt-6">
-                <h3 className="text-lg font-semibold text-text-primary mb-6">Email Account Connection</h3>
-                
-                {settings.connectedEmail ? (
+                <h3 className="text-lg font-semibold text-text-primary mb-6">SMTP Configuration</h3>
+
+                {loadingSmtpConfig ? (
+                  <div className="flex items-center justify-center py-8">
+                    <div className="w-6 h-6 border-2 border-blue-200 border-t-blue-600 rounded-full animate-spin"></div>
+                    <span className="ml-2 text-text-secondary">Loading SMTP configuration...</span>
+                  </div>
+                ) : smtpConfig ? (
                   <div className="bg-success/10 border border-success/20 rounded-lg p-4">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center space-x-3">
@@ -219,18 +229,44 @@ const SettingsPage: React.FC = () => {
                           <i className="fas fa-check text-white"></i>
                         </div>
                         <div>
-                          <div className="font-medium text-text-primary">Connected Email</div>
-                          <div className="text-sm text-text-secondary">{settings.connectedEmail}</div>
-                          <div className="text-xs text-success mt-1">Account verified and ready to send emails</div>
+                          <div className="font-medium text-text-primary">SMTP Configured</div>
+                          <div className="text-sm text-text-secondary">{smtpConfig.fromEmail}</div>
+                          <div className="text-xs text-success mt-1">
+                            {smtpConfig.host}:{smtpConfig.port} ({smtpConfig.secure ? 'SSL/TLS' : 'STARTTLS'})
+                            {smtpConfig.lastTested && ` • Last tested: ${new Date(smtpConfig.lastTested).toLocaleDateString()}`}
+                          </div>
                         </div>
                       </div>
-                      <Button
-                        variant="secondary"
-                        onClick={handleDisconnectEmail}
-                        loading={saving}
-                      >
-                        Disconnect
-                      </Button>
+                      <div className="flex space-x-2">
+                        <Button
+                          variant="secondary"
+                          onClick={handleOpenSmtpModal}
+                        >
+                          Edit
+                        </Button>
+                        <Button
+                          variant="danger"
+                          onClick={async () => {
+                            await confirmDanger({
+                              title: 'Delete SMTP Configuration',
+                              message: 'Are you sure you want to delete this SMTP configuration? This action cannot be undone.',
+                              confirmText: 'Delete',
+                              cancelText: 'Cancel',
+                              onConfirm: async () => {
+                                try {
+                                  await smtpService.deleteSmtpConfig();
+                                  setSmtpConfig(null);
+                                  showToast('SMTP configuration deleted successfully', 'success');
+                                } catch (error: any) {
+                                  showToast(error.message || 'Failed to delete SMTP configuration', 'error');
+                                }
+                              }
+                            });
+                          }}
+                        >
+                          Delete
+                        </Button>
+                      </div>
                     </div>
                   </div>
                 ) : (
@@ -238,19 +274,18 @@ const SettingsPage: React.FC = () => {
                     <div className="flex items-center justify-between">
                       <div className="flex items-center space-x-3">
                         <div className="w-10 h-10 bg-warning rounded-full flex items-center justify-center">
-                          <i className="fas fa-envelope text-white"></i>
+                          <i className="fas fa-server text-white"></i>
                         </div>
                         <div>
-                          <div className="font-medium text-text-primary">No Email Connected</div>
-                          <div className="text-sm text-text-secondary">Connect your email account to send campaigns</div>
+                          <div className="font-medium text-text-primary">No SMTP Configuration</div>
+                          <div className="text-sm text-text-secondary">Configure your SMTP server to send emails</div>
                           <div className="text-xs text-warning mt-1">Required to send email campaigns</div>
                         </div>
                       </div>
                       <Button
-                        onClick={handleConnectEmail}
-                        loading={connectingEmail}
+                        onClick={handleOpenSmtpModal}
                       >
-                        {connectingEmail ? 'Connecting...' : 'Connect Email'}
+                        Configure SMTP
                       </Button>
                     </div>
                   </div>
@@ -312,7 +347,21 @@ const SettingsPage: React.FC = () => {
                       <div className="font-medium text-text-primary">Export Data</div>
                       <div className="text-sm text-text-secondary">Download all your data</div>
                     </div>
-                    <Button variant="secondary">
+                    <Button
+                      variant="secondary"
+                      onClick={async () => {
+                        await confirm({
+                          title: 'Export Data',
+                          message: 'Would you like to download a copy of all your data? This may take a few moments to prepare.',
+                          confirmText: 'Export',
+                          cancelText: 'Cancel',
+                          onConfirm: async () => {
+                            // TODO: Implement data export logic
+                            showToast('Data export feature coming soon', 'info');
+                          }
+                        });
+                      }}
+                    >
                       Export
                     </Button>
                   </div>
@@ -322,7 +371,21 @@ const SettingsPage: React.FC = () => {
                       <div className="font-medium text-error">Delete Account</div>
                       <div className="text-sm text-text-secondary">Permanently delete your account and data</div>
                     </div>
-                    <Button variant="danger">
+                    <Button
+                      variant="danger"
+                      onClick={async () => {
+                        await confirmDanger({
+                          title: 'Delete Account',
+                          message: 'Are you sure you want to permanently delete your account and all associated data? This action cannot be undone.',
+                          confirmText: 'Delete Account',
+                          cancelText: 'Cancel',
+                          onConfirm: async () => {
+                            // TODO: Implement account deletion logic
+                            showToast('Account deletion feature coming soon', 'info');
+                          }
+                        });
+                      }}
+                    >
                       Delete Account
                     </Button>
                   </div>

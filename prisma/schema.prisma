@@ -8,22 +8,24 @@ datasource db {
 }
 
 model User {
-  id             String           @id @default(cuid())
-  neonUserId     String           @unique
-  email          String           @unique
-  name           String
-  company        String?
-  title          String?
-  isActive       Boolean          @default(true)
-  lastLoginAt    DateTime?
-  emailConfirmed Boolean          @default(false)
-  createdAt      DateTime         @default(now())
-  updatedAt      DateTime         @updatedAt
-  campaigns      Sequence[]
-  emailTemplates EmailTemplate[]
-  prospects      Prospect[]
-  sessions       Session[]
-  tasks          TaskAssignment[]
+  id                     String                  @id @default(cuid())
+  neonUserId             String                  @unique
+  email                  String                  @unique
+  name                   String
+  company                String?
+  title                  String?
+  isActive               Boolean                 @default(true)
+  lastLoginAt            DateTime?
+  emailConfirmed         Boolean                 @default(false)
+  createdAt              DateTime                @default(now())
+  updatedAt              DateTime                @updatedAt
+  campaigns              Sequence[]
+  emailTemplates         EmailTemplate[]
+  prospects              Prospect[]
+  sessions               Session[]
+  smtp_configs           SmtpConfig?
+  tasks                  TaskAssignment[]
+  user_email_connections user_email_connections?
 
   @@map("users")
 }
@@ -78,7 +80,7 @@ model Prospect {
   campaignProspects CampaignProspect[]
   creator           User               @relation(fields: [createdBy], references: [id], onDelete: Cascade)
 
-  @@unique([email, createdBy])  // Email should be unique per user
+  @@unique([email, createdBy])
   @@index([status])
   @@map("prospects")
 }
@@ -92,9 +94,9 @@ model Sequence {
   startedAt         DateTime?
   pausedAt          DateTime?
   completedAt       DateTime?
-  scheduledAt       DateTime?
   createdAt         DateTime           @default(now())
   updatedAt         DateTime           @updatedAt
+  scheduledAt       DateTime?
   campaignProspects CampaignProspect[]
   steps             SequenceStep[]
   creator           User               @relation(fields: [createdBy], references: [id], onDelete: Cascade)
@@ -137,10 +139,10 @@ model StepTaskAction {
   stepId                  String       @unique
   taskTitle               String
   taskDescription         String?
-  taskType                TaskType     @default(CUSTOM)
   enableEmailNotification Boolean      @default(false)
   createdAt               DateTime     @default(now())
   updatedAt               DateTime     @updatedAt
+  taskType                TaskType     @default(CUSTOM)
   step                    SequenceStep @relation(fields: [stepId], references: [id], onDelete: Cascade)
   tasks                   Task[]
 
@@ -210,6 +212,28 @@ model TaskAssignment {
   @@map("task_assignments")
 }
 
+model SmtpConfig {
+  id           String    @id @default(cuid())
+  userid       String    @unique
+  host         String
+  port         Int
+  secure       Boolean   @default(true)
+  username     String
+  passwordhash String
+  encryptedpassword String?
+  fromemail    String
+  fromname     String?
+  isactive     Boolean   @default(true)
+  lasttested   DateTime?
+  testresult   String?
+  createdat    DateTime  @default(now())
+  updatedat    DateTime
+  users        User      @relation(fields: [userid], references: [id], onDelete: Cascade)
+
+  @@index([userid])
+  @@map("smtp_configs")
+}
+
 model EmailLog {
   id                  String      @id @default(cuid())
   personalizedEmailId String?
@@ -229,6 +253,23 @@ model EmailLog {
   @@map("email_logs")
 }
 
+model user_email_connections {
+  id               String           @id
+  userId           String           @unique
+  smtpHost         String
+  smtpPort         Int              @default(587)
+  smtpSecure       Boolean          @default(false)
+  username         String
+  password         String
+  fromEmail        String
+  fromName         String?
+  connectionStatus ConnectionStatus @default(PENDING)
+  lastTestAt       DateTime?
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime
+  users            User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
 enum SequenceStatus {
   DRAFT
   ACTIVE
@@ -240,8 +281,6 @@ enum SequenceStatus {
 
 enum ProspectStatus {
   NEW
-  RUNNING
-  PAUSED
   CONTACTED
   ENGAGED
   REPLIED
@@ -250,6 +289,8 @@ enum ProspectStatus {
   OPTED_OUT
   CONVERTED
   BOUNCED
+  PAUSED
+  RUNNING
   ENDED
 }
 
@@ -276,4 +317,10 @@ enum TaskType {
   CALL
   EMAIL
   CUSTOM
+}
+
+enum ConnectionStatus {
+  PENDING
+  VERIFIED
+  FAILED
 }
